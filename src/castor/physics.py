@@ -42,21 +42,26 @@ def calc_pixel_scale(focal_length_m: float, pixel_size_micron: float) -> float:
     
     return scale_arcsec
 
-def calc_telescope_area(diameter_m: float) -> float:
+def calc_telescope_area(diameter_m: float, obstruction_ratio: float = 0.0) -> float:
     """
     Calculate the effective light-gathering area of the telescope's primary mirror.
     (Assumes diameter is strictly positive and validated by the caller)
 
     Args:
         diameter_m (float): The diameter of the primary mirror in meters.
+        obstruction_ratio (float): The linear ratio of the central obstruction 
+            (diameter of secondary mirror / diameter of primary mirror). 
+            Defaults to 0.0 (no obstruction).
 
     Returns:
-        float: The effective gathering area in square meters.
+        float: The effective gathering area in square meters (m^2).
     """
     radius = diameter_m / 2.0
-    area = constants.pi * (radius ** 2)
+    total_area = np.pi * (radius**2)
     
-    return area
+    effective_area = total_area * (1.0 - obstruction_ratio**2)
+    
+    return effective_area
 
 def calc_aperture_area(aperture_radius_arcsec: float) -> float:
     """
