@@ -1,96 +1,153 @@
-from pydantic import BaseModel, Field, PositiveFloat, model_validator
-from typing import Optional
-from castor.schema import TelescopeSchema, CameraSchema, FilterSchema
-class ObservationRequest(BaseModel):
+from typing import List
+from castor import physics  # 假設你的物理公式都在這個 module
+from castor.schema import ObservationRequest, CastorResponse
+
+class CastorCalculator:
     """
-    The complete contract for a CASTOR calculation request.
-    This links hardware parameters with specific observation conditions.
+    The core calculator for CASTOR ETC.
+    It bridges the ObservationRequest payload with the pure physics engine.
     """
-    # --- 1. Hardware Configuration ---
-    telescope: TelescopeSchema
-    camera: CameraSchema
-    instrument_filter: FilterSchema
-
-    # --- 2. Target Information ---
-    target_mag: float = Field(
-        ..., 
-        description="The apparent magnitude of the target celestial object."
-    )
-
-    # --- 3. Observation Environment (Mandatory) ---
-    sky_brightness_mag_arcsec2: float = Field(
-        ..., 
-        description="Sky background brightness in magnitude per square arcsecond (mag/arcsec^2)."
-    )
     
-    # --- 4. Environmental Variables (With Defaults) ---
-    airmass: float = Field(
-        1.0, 
-        ge=1.0, 
-        le=5.0, 
-        description="Airmass of the observation (1.0 = Zenith)."
-    )
-    seeing_fwhm_arcsec: PositiveFloat = Field(
-        1.5, 
-        description="Atmospheric seeing FWHM in arcseconds. Used for PSF flux fraction."
-    )
-    extinction_coeff: Optional[float] = Field(
-        None, 
-        description="Atmospheric extinction coefficient. If None, use filter's default."
-    )
+    def calculate(self, request: ObservationRequest) -> CastorResponse:
+        # ==========================================
+        # 階段 1 & 2：預計算 (與時間/SNR 無關的常數)
+        # ==========================================
+        
+        # 1. 幾何與硬體常數
+        eff_area = physics.calc_telescope_area(
+            request.telescope.diameter_m, 
+            request.telescope.central_obstruction_linear_ratio
+        )
+        
+        pixel_scale = physics.calc_pixel_scale(
+            request.telescope.focal_length_m, 
+            request.camera.pixel_size_micron
+        )
+        
+        # 2. 能量與效率
+        wavelength_m = request.instrument_filter.central_wavelength_nm * 1e-9
+        photon_energy = physics.calc_photon_energy(wavelength_m)
+        
+        throughput = physics.calc_throughput(
+            request.telescope.m1_reflectance,
+            request.telescope.m2_reflectance,
+            request.instrument_filter.peak_transmission,
+            request.telescope.glass_transmission,
+            request.camera.quantum_efficiency
+        )
 
-    # --- 5. Calculation Logic Control ---
-    # User must provide either exposure_time to get SNR, or target_snr to get time.
-    exposure_time: Optional[PositiveFloat] = Field(
-        None, 
-        description="Exposure time in seconds. Input for SNR calculation."
-    )
-    target_snr: Optional[PositiveFloat] = Field(
-        None, 
-        description="Requested Signal-to-Noise Ratio. Input for time calculation."
-    )
+        # 3. 孔徑 (Aperture) 邏輯
+        # 若使用者未提供，預設為 seeing 的 1.5 倍
+        aperture_radius = request.aperture_radius_arcsec or (request.seeing_fwhm_arcsec * 1.5)
+        aperture_area = physics.calc_aperture_area(aperture_radius)
+        n_pix_ap = physics.calc_npix_aperture(aperture_area, pixel_scale)
+        flux_fraction = physics.calc_flux_in_aperture(aperture_radius, request.seeing_fwhm_arcsec)
 
-    # --- 6. Advanced Overrides & Settings ---
-    gain_override: Optional[float] = Field(
-        None, 
-        gt=0, 
-        description="Override the camera's hardware gain for specific scenarios (e.g., CMOS modes)."
-    )
-    aperture_radius_arcsec: Optional[PositiveFloat] = Field(
-        None, 
-        description="Software aperture radius in arcseconds. If None, the calculator will default to 1.5x seeing."
-    )
+        # 4. 計算核心率值 (Rates)
+        # 消光：若未提供，退回濾鏡預設值
+        extinction = request.extinction_coeff or request.instrument_filter.default_extinction
+        filter_width_m = request.instrument_filter.fwhm_nm * 1e-9
 
-    @model_validator(mode='after')
-    def check_calculation_mode(self):
-        """
-        Ensure that exactly one of 'exposure_time' or 'target_snr' is provided.
-        This enforces mutual exclusivity between the two calculation modes.
-        """
-        # (self.exposure_time is None) == (self.target_snr is None) 
-        # is True if both are None or both are provided.
-        if (self.exposure_time is None) == (self.target_snr is None):
-            raise ValueError("Must provide either 'exposure_time' or 'target_snr', but not both.")
-        return self
+        source_rate = physics.calc_source_count_rate(
+            request.instrument_filter.zero_mag_flux,
+            request.target_mag,
+            extinction,
+            request.airmass,
+            filter_width_m,
+            eff_area,
+            photon_energy,
+            throughput,
+            flux_fraction
+        )
 
-class CastorResponse(BaseModel):
-    """
-    Structured output from the CASTOR calculator.
-    """
-    # Primary Results
-    snr: Optional[float] = None
-    exposure_time: Optional[float] = None
-    
-    # Secondary Physics Metrics (For user verification)
-    source_rate_e_sec: float = Field(..., description="Source signal rate.")
-    sky_rate_e_sec_pix: float = Field(..., description="Sky background rate per pixel[cite: 1].")
-    pixel_scale: float = Field(..., description="Arcsec per pixel[cite: 1].")
-    total_noise_e: Optional[float] = None
-    
-    # Overhead & Safety
-    readout_time_sec: float = Field(..., description="Time to read the CCD[cite: 1].")
-    total_observation_time_sec: float = Field(..., description="Exposure + Readout[cite: 1].")
-    is_saturated: bool = Field(False, description="True if the signal exceeds Full Well Capacity.")
-    
-    # Warnings (Optional)
-    warnings: list[str] = []
+        sky_rate = physics.calc_sky_count_rate(
+            request.instrument_filter.zero_mag_flux,
+            request.sky_brightness_mag_arcsec2,
+            filter_width_m,
+            eff_area,
+            pixel_scale,
+            photon_energy,
+            throughput
+        )
+
+        readout_time = physics.calc_readout_time(
+            request.camera.resolution_x,
+            request.camera.resolution_y,
+            request.camera.readout_speed_khz,
+            request.camera.n_amplifiers
+        )
+
+        # ==========================================
+        # 階段 3 & 4：陣列迭代與包裝
+        # ==========================================
+        
+        # 準備輸出陣列
+        out_snr = []
+        out_time = []
+        out_noise = []
+        out_sat = []
+        out_obs_time = []
+        warnings = []
+        
+        # 取得實際運用的 Gain 與 Full Well
+        actual_gain = request.gain_override or request.camera.gain
+        full_well = request.camera.full_well_capacity_e
+
+        # 模式 A：已知時間陣列算 SNR
+        if request.exposure_time is not None:
+            out_time = request.exposure_time
+            for t in request.exposure_time:
+                # 算 SNR 與 雜訊
+                noise, snr = physics.calc_total_noise_and_snr(
+                    source_rate, sky_rate, request.camera.dark_current_e_per_sec,
+                    request.camera.read_noise_e, n_pix_ap, t
+                )
+                out_snr.append(snr)
+                out_noise.append(noise)
+                
+                # 算總訊號與檢查飽和
+                total_signal_e = physics.calc_total_signal(source_rate, t)
+                is_sat = (full_well is not None) and (total_signal_e > full_well)
+                out_sat.append(is_sat)
+                
+                # 算總觀測時間
+                out_obs_time.append(physics.calc_total_observation_time(t, readout_time))
+
+        # 模式 B：已知 SNR 陣列反推時間
+        elif request.target_snr is not None:
+            out_snr = request.target_snr
+            for target in request.target_snr:
+                req_t = physics.calc_exposure_time(
+                    source_rate, sky_rate, request.camera.dark_current_e_per_sec,
+                    request.camera.read_noise_e, target, n_pix_ap
+                )
+                out_time.append(req_t)
+                
+                # 為了結構完整，把目標時間的雜訊也算出來
+                noise, _ = physics.calc_total_noise_and_snr(
+                    source_rate, sky_rate, request.camera.dark_current_e_per_sec,
+                    request.camera.read_noise_e, n_pix_ap, req_t
+                )
+                out_noise.append(noise)
+                
+                total_signal_e = physics.calc_total_signal(source_rate, req_t)
+                is_sat = (full_well is not None) and (total_signal_e > full_well)
+                out_sat.append(is_sat)
+                
+                out_obs_time.append(physics.calc_total_observation_time(req_t, readout_time))
+        
+        if any(out_sat):
+            warnings.append("Warning: Some requested parameters exceed the camera's full well capacity. The target will be saturated.")
+
+        return CastorResponse(
+            snr=out_snr,
+            exposure_time=out_time,
+            total_noise_e=out_noise,
+            is_saturated=out_sat,
+            total_observation_time_sec=out_obs_time,
+            source_rate_e_sec=source_rate,
+            sky_rate_e_sec_pix=sky_rate,
+            pixel_scale=pixel_scale,
+            readout_time_sec=readout_time,
+            warnings=warnings
+        )
