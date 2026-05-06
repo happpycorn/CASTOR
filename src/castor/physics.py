@@ -18,6 +18,8 @@ __all__ = [
     "calc_total_observation_time"
 ]
 
+PLANCK_CONSTANT, SPEED_OF_LIGHT = constants.h, constants.c
+
 # ==========================================
 # 1. Spatial & Geometry (空間與幾何光學)
 # ==========================================
