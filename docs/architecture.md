@@ -105,9 +105,102 @@ To maintain its identity as a lightweight, high-performance computational kernel
 * **No Queue Optimization:** While optimized to *support* schedulers, CASTOR itself does not decide the optimal observation order for targets or generate automated telescope operation queues.
 * **No Hardware Constraint Checking:** It does not evaluate telescope mechanical pointing limits (e.g., dome slit collisions or altitude limits) or integrate with real-time weather forecasts.
 
-## 2. Design Principles
+## 2. Component Architecture
 
-## 3. Data Contracts & Schema
+> **[TBD / Draft Phase]**
+> *The internal module division is currently in the draft phase and may evolve after further team discussion.*
+
+The CASTOR package is divided into the following core modules:
+
+```text
+src/castor/
+├── __init__.py        # Package Entry Point
+├── calculator.py      # Main Orchestrator & Batch Processing
+├── schema.py          # Data Contracts & Mutex Validation
+├── catalogs.py        # External Network Boundaries & Catalog Resolvers
+├── ephemeris.py       # Astrometry, Time & Environment Modeling
+├── optics.py          # Hardware & Optical Train Modeling
+├── physics.py         # Pure Mathematical & Physics Engine
+└── exceptions.py      # Custom Domain Exceptions
+```
+
+### Module Responsibilities
+
+* **`calculator.py`:** The system's traffic controller. It receives validated requests, gathers missing parameters from domain modules (`catalogs`, `ephemeris`, `optics`), feeds the aggregated NumPy arrays into `physics.py`, and packages the final response.
+
+* **`schema.py`:** Defines Pydantic models to block invalid data at the door. It enforces physical boundaries (e.g., transmission rates strictly between $0.0$ and $1.0$) and logical mutual exclusivity (e.g., requiring either exposure time or target SNR, but not both).
+
+* **`catalogs.py`:** The *only* module in the system authorized to make HTTP requests. It queries external databases (e.g., SIMBAD) to dynamically resolve celestial target names into precise RA/Dec coordinates and baseline magnitudes.
+
+* **`ephemeris.py`:** Handles dynamic variables related to time and space using pure local mathematics (no external API calls). It calculates instantaneous Airmass, Moon phase, and sky background based on observation timestamps and coordinates.
+
+* **`optics.py`:** Converts hardware specifications into physical parameters. It calculates the effective light-gathering area (accounting for obstruction), total optical throughput, and dynamically adjusts pixel scale and read noise based on sensor binning modes.
+
+* **`physics.py`:** The lowest-level computational core. It contains no web schemas or API logic. It accepts only pure numerical matrices or scalars to execute deterministic algorithms—such as analytical quadratic solvers—in strict $O(1)$ complexity.
+
+* **`exceptions.py`:** Centralizes CASTOR-specific error classes (e.g., `TargetNotFoundError`, `PhysicsBoundaryError`) to provide clear, actionable error traces for the parent system.
+
+## 3. Design Principles
+
+### 3.1 Separation of Concerns
+
+### 3.2 Contract-Driven & Fail-Fast
+
+### 3.3 Statelessness
+
+### 3.4 Analytical Determinism
+
+### 3.5 Vectorized Batch Optimization
+
+## 4. Data Flow & Lifecycle
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as External Caller (API/Web)
+    participant Calc as calculator.py (Orchestrator)
+    participant Schema as schema.py (Gatekeeper)
+    participant Domain as Domain Models (catalogs, ephemeris, optics)
+    participant Physics as physics.py (Math Engine)
+
+    %% Phase 1: Ingress & Validation
+    Client->>Calc: Request Calculation (JSON/Dict)
+    activate Calc
+    Calc->>Schema: Validate Input Constraints & Mutex
+    activate Schema
+    alt Invalid Input (e.g., negative time)
+        Schema-->>Client: Raise ValidationError (Fail-Fast)
+    end
+    Schema-->>Calc: Validated Pydantic Object
+    deactivate Schema
+
+    %% Phase 2: Context Enrichment
+    rect rgb(240, 248, 255)
+        Note over Calc, Domain: Phase 2: Context Enrichment (Resolving Missing Data)
+        Calc->>Domain: Resolve Target (SIMBAD) -> RA/Dec
+        Calc->>Domain: Compute Environment -> Airmass, Moon Phase
+        Calc->>Domain: Compute Hardware -> Effective Area, Read Noise
+        Domain-->>Calc: Aggregated Scalar/Vector Parameters
+    end
+
+    %% Phase 3: Vectorization
+    Note over Calc: Phase 3: Vectorization<br/>Expand time ranges & align dimensions into NumPy Arrays.
+
+    %% Phase 4: Core Computation
+    Calc->>Physics: solve_snr(numpy_arrays) / solve_time(numpy_arrays)
+    activate Physics
+    Note over Physics: Pure O(1) Mathematical Solving (No side-effects)
+    Physics-->>Calc: Result Matrix (NumPy Arrays)
+    deactivate Physics
+
+    %% Phase 5: Egress
+    Calc->>Schema: Package into CastorResponse
+    Schema-->>Calc: Validated Response Object
+    Calc-->>Client: Return Result Payload
+    deactivate Calc
+```
+
+## 5. Data Contracts & Schema
 
 The CASTOR project utilizes Pydantic models for strict data validation. The core data structure is designed around the principle of separating "Hardware Configuration" from "Observation Conditions." This ensures type safety and physical unit correctness when passing parameters across different modules.
 
@@ -217,9 +310,5 @@ Structured output from the CASTOR calculator. Each list item corresponds to the 
 | `pixel_scale` | `float` | Arcsec per pixel. |
 | `readout_time_sec` | `float` | Fixed time to read the CCD. |
 | `warnings` | `list[str]` | List of warning messages generated during calculation. |
-
-## Component Architecture
-
-## Data Flow
 
 ## Future Extensibility
