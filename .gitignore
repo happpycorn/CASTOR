@@ -208,3 +208,7 @@ __marimo__/
 
 # Mac
 .DS_Store
+
+# Other
+.continueignore
+project_context.md
