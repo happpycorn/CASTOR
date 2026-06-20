@@ -140,6 +140,12 @@ src/castor/
 
 * **`exceptions.py`:** Centralizes CASTOR-specific error classes (e.g., `TargetNotFoundError`, `PhysicsBoundaryError`) to provide clear, actionable error traces for the parent system.
 
+---
+
+> [!WARNING]
+> **Work In Progress**
+> The following sections are currently under construction and may be incomplete.
+
 ## 3. Design Principles
 
 ### 3.1 Separation of Concerns
@@ -311,4 +317,4 @@ Structured output from the CASTOR calculator. Each list item corresponds to the 
 | `readout_time_sec` | `float` | Fixed time to read the CCD. |
 | `warnings` | `list[str]` | List of warning messages generated during calculation. |
 
-## Future Extensibility
+## 6. Future Extensibility
