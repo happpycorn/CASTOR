@@ -77,7 +77,7 @@ flowchart TD
 * **Optical Train Aggregation:** Calculating effective light-gathering area (accounting for obstruction) and total system optical throughput.
 * **Dynamic Sensor Configurations:** Adjusting read noise, pixel scale, full-well capacity, and readout overhead dynamically based on user-defined Binning modes (e.g., 1x1, 2x2) and amplifier counts.
 
-##### E. Catalog Resolution (星表解析)
+##### E. Catalog Resolution
 
 * **External Integration:** Querying external astronomical databases (e.g., SIMBAD) to dynamically resolve celestial target names into precise RA/Dec coordinates and baseline magnitudes.
 
