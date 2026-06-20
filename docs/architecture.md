@@ -163,43 +163,53 @@ src/castor/
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Client as External Caller (API/Web)
-    participant Calc as calculator.py (Orchestrator)
-    participant Schema as schema.py (Gatekeeper)
-    participant Domain as Domain Models (catalogs, ephemeris, optics)
-    participant Physics as physics.py (Math Engine)
+    
+    %% 將過長的名字加上 <br/> 來節省橫向空間
+    actor Client as External Caller<br/>(API/Web)
+    
+    %% 使用 rgba 產生淡淡的紫色光暈，對齊 Flowchart 的 CASTOR 外框
+    box rgba(168, 113, 255, 0.05) CASTOR Core Engine
+        participant Calc as calculator.py<br/>(Orchestrator)
+        participant Schema as schema.py<br/>(Gatekeeper)
+        participant Domain as Domain Models<br/>(catalogs, ephemeris, optics)
+        participant Physics as physics.py<br/>(Math Engine)
+    end
 
     %% Phase 1: Ingress & Validation
     Client->>Calc: Request Calculation (JSON/Dict)
     activate Calc
     Calc->>Schema: Validate Input Constraints & Mutex
     activate Schema
-    alt Invalid Input (e.g., negative time)
-        Schema-->>Client: Raise ValidationError (Fail-Fast)
-    end
     Schema-->>Calc: Validated Pydantic Object
     deactivate Schema
 
-    %% Phase 2: Context Enrichment
-    rect rgb(240, 248, 255)
-        Note over Calc, Domain: Phase 2: Context Enrichment (Resolving Missing Data)
-        Calc->>Domain: Resolve Target (SIMBAD) -> RA/Dec
-        Calc->>Domain: Compute Environment -> Airmass, Moon Phase
-        Calc->>Domain: Compute Hardware -> Effective Area, Read Noise
-        Domain-->>Calc: Aggregated Scalar/Vector Parameters
+    %% Phase 2: Context Enrichment (Kinder 藍色背景)
+    rect rgba(43, 140, 255, 0.1)
+        Note over Calc, Domain: Phase 2: Context Enrichment<br/>(Resolving missing physical<br/>& environmental data)
+        
+        %% 將過長的動作標籤折行
+        Calc->>Domain: Resolve Target<br/>(SIMBAD) -> RA/Dec
+        Calc->>Domain: Compute Environment<br/>-> Airmass, Moon Phase
+        Calc->>Domain: Compute Hardware<br/>-> Effective Area, Read Noise
+        Domain-->>Calc: Aggregated Parameters
     end
 
-    %% Phase 3: Vectorization
-    Note over Calc: Phase 3: Vectorization<br/>Expand time ranges & align dimensions into NumPy Arrays.
+    %% Phase 3: Core Computation (CASTOR 紫色背景)
+    rect rgba(168, 113, 255, 0.1)
+        Note over Calc, Physics: Phase 3: Core Computation
+        
+        opt Array / Time-Range Input Detected
+            Note over Calc: Vectorization: Align dimensions<br/>& expand into NumPy Arrays
+        end
+        
+        Calc->>Physics: solve_snr() / solve_time()
+        activate Physics
+        Note over Physics: Pure O(1) Mathematical Solving
+        Physics-->>Calc: Result Matrix / Scalar
+        deactivate Physics
+    end
 
-    %% Phase 4: Core Computation
-    Calc->>Physics: solve_snr(numpy_arrays) / solve_time(numpy_arrays)
-    activate Physics
-    Note over Physics: Pure O(1) Mathematical Solving (No side-effects)
-    Physics-->>Calc: Result Matrix (NumPy Arrays)
-    deactivate Physics
-
-    %% Phase 5: Egress
+    %% Phase 4: Egress
     Calc->>Schema: Package into CastorResponse
     Schema-->>Calc: Validated Response Object
     Calc-->>Client: Return Result Payload
@@ -257,8 +267,6 @@ Defines the characteristics of the optical filter band.
 | `peak_transmission` | `float` (0~1) | 0.9 | Maximum transmission ratio of the filter. |
 | `zero_mag_flux` | `float` | (Required) | Flux of a 0-magnitude star for this band (W m^-2 m^-1). |
 | `default_extinction` | `float` | 0.15 | Default atmospheric extinction coefficient (mag/airmass). |
-
----
 
 ### 3.2 Request & Response Contracts
 
