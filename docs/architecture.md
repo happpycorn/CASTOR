@@ -46,11 +46,11 @@ flowchart TD
     OtherAPI -- "Python Function Call:<br>Pydantic Object" --> CASTOR
 
     %% 設定視覺樣式
-    style CASTOR fill:#f9f0ff,stroke:#9370db,stroke-width:2px
-    style KinderClient fill:#e6f3ff,stroke:#4da6ff,stroke-width:1px
-    style KinderAPI fill:#e6f3ff,stroke:#4da6ff,stroke-width:1px
-    style OtherClient fill:#f9f9f9,stroke:#b3b3b3,stroke-width:1px,stroke-dasharray: 5 5
-    style OtherAPI fill:#f9f9f9,stroke:#b3b3b3,stroke-width:1px,stroke-dasharray: 5 5
+    style CASTOR fill:transparent,stroke:#a871ff,stroke-width:3px
+    style KinderClient fill:transparent,stroke:#2b8cff,stroke-width:2px
+    style KinderAPI fill:transparent,stroke:#2b8cff,stroke-width:2px
+    style OtherClient fill:transparent,stroke:#888888,stroke-width:2px,stroke-dasharray: 5 5
+    style OtherAPI fill:transparent,stroke:#888888,stroke-width:2px,stroke-dasharray: 5 5
 ```
 
 #### In Scope for CASTOR
