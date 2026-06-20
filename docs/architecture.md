@@ -14,7 +14,7 @@ Traditional astronomical exposure time calculators are often tightly coupled wit
 
 To maintain the purity and high performance of the core engine, a strict division of responsibilities and a clear data transformation pipeline are established. While CASTOR is natively integrated with the [Kinder](https://kinder.astro.ncu.edu.tw) ecosystem, its decoupled architecture allows it to be invoked by any external application:
 
-```Mermaid
+```mermaid
 flowchart TD
     %% 定義終端使用者
     User((User / Astronomer))
