@@ -160,6 +160,8 @@ src/castor/
 
 ## 4. Data Flow & Lifecycle
 
+CASTOR processes each calculation request through a straightforward, step-by-step pipeline. When a request arrives, the engine first validates the input data to catch physical errors or conflicting settings immediately. It then aggregates any missing observation conditions, target coordinates, or hardware specifications using its internal modules. Finally, these completed parameters are passed to the core physics engine to compute the required exposure time or signal-to-noise ratio (SNR), and the final metrics are formatted and returned as the response.
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -215,6 +217,36 @@ sequenceDiagram
     Calc-->>Client: Return Result Payload
     deactivate Calc
 ```
+
+### 4.1 Lifecycle Phases Breakdown
+
+#### Phase 1: Ingress & Validation
+
+* **Input**: A JSON payload or Python dictionary containing the user's observation parameters and hardware configurations.
+* **Action**: The `schema.py` module uses Pydantic to strictly validate the incoming data against two main constraints:
+  1. **Physical Limits**: Ensures values conform to real-world physics (e.g., exposure times must be positive, and optical transmission rates must fall strictly between 0.0 and 1.0).
+  2. **Mutual Exclusivity**: Enforces the core logic requiring the caller to provide either `exposure_time` or `target_snr`, but never both.
+* **Output**: A validated Pydantic object (`ObservationRequest`). If any check fails, the system immediately rejects the request with a validation error to protect the core engine.
+
+#### Phase 2: Context Enrichment
+
+* **Input**: The validated `ObservationRequest` object.
+* **Action**: Action: Determines if the incoming input has missing data or requires complementation by other functions. It then invokes the corresponding internal functions to calculate and fill in these gaps.
+* **Output**: A complete, aggregated set of parameters ready for the mathematical formulas.
+
+#### Phase 3: Core Computation
+
+* **Input**: The enriched and aggregated parameter set.
+* **Action**:
+  1. **Optional Vectorization**: If the request contains arrays or continuous time ranges, the engine automatically aligns these dimensions and expands them into NumPy arrays to process the entire batch simultaneously without using slow Python loops.
+  2. **Mathematical Solving**: The `physics.py` module takes these raw numbers or matrices and runs the core analytical formulas via `some_function()` or `some_function()`. This layer handles pure mathematics and contains no network or database dependencies.
+* **Output**: Raw numerical results (scalars or matrices) representing the calculated SNR or exposure times.
+
+#### Phase 4: Egress
+
+* **Input**: The raw numerical outputs from the physics engine.
+* **Action**: The orchestrator maps the raw numbers into the final structured output layout. During this step, it also performs hardware boundary checks, such as verifying if the signal level exceeds the sensor's full-well capacity to flag pixel saturation (`is_saturated`).
+* **Output**: A validated `CastorResponse` object, which is returned safely to the external client.
 
 ## 5. Data Contracts & Schema
 
