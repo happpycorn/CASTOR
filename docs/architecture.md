@@ -169,10 +169,10 @@ sequenceDiagram
     
     %% 使用 rgba 產生淡淡的紫色光暈，對齊 Flowchart 的 CASTOR 外框
     box rgba(168, 113, 255, 0.05) CASTOR Core Engine
-        participant Calc as calculator.py<br/>(Orchestrator)
-        participant Schema as schema.py<br/>(Gatekeeper)
+        participant Calc as calculator.py
+        participant Schema as schema.py
         participant Domain as Domain Models<br/>(catalogs, ephemeris, optics)
-        participant Physics as physics.py<br/>(Math Engine)
+        participant Physics as physics.py
     end
 
     %% Phase 1: Ingress & Validation
@@ -185,12 +185,12 @@ sequenceDiagram
 
     %% Phase 2: Context Enrichment (Kinder 藍色背景)
     rect rgba(43, 140, 255, 0.1)
-        Note over Calc, Domain: Phase 2: Context Enrichment<br/>(Resolving missing physical<br/>& environmental data)
+        Note over Calc, Domain: Phase 2: Context Enrichment<br/>(Resolving missing physical & environmental data)
         
         %% 將過長的動作標籤折行
-        Calc->>Domain: Resolve Target<br/>(SIMBAD) -> RA/Dec
-        Calc->>Domain: Compute Environment<br/>-> Airmass, Moon Phase
-        Calc->>Domain: Compute Hardware<br/>-> Effective Area, Read Noise
+        Calc->>Domain: Resolve Target(SIMBAD) -> RA/Dec
+        Calc->>Domain: Compute Environment -> Airmass, Moon Phase
+        Calc->>Domain: Compute Hardware -> Effective Area, Read Noise
         Domain-->>Calc: Aggregated Parameters
     end
 
@@ -198,13 +198,13 @@ sequenceDiagram
     rect rgba(168, 113, 255, 0.1)
         Note over Calc, Physics: Phase 3: Core Computation
         
-        opt Array / Time-Range Input Detected
+        opt Input Detected
             Note over Calc: Vectorization: Align dimensions<br/>& expand into NumPy Arrays
         end
         
         Calc->>Physics: solve_snr() / solve_time()
         activate Physics
-        Note over Physics: Pure O(1) Mathematical Solving
+        Note over Physics: Mathematical Solving
         Physics-->>Calc: Result Matrix / Scalar
         deactivate Physics
     end
