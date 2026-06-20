@@ -1,12 +1,119 @@
 # Architecture
 
-## Data Schema
+## 1. System Overview
+
+### 1.1 Product Identity
+
+CASTOR is a lightweight, stateless exposure time calculator (ETC) core engine designed specifically for optical astronomical observations. The project completely excludes graphical user interfaces (GUI) and data persistence layers, focusing entirely on implementing underlying physical algorithms—such as optical geometry, atmospheric physics, energy conversion, and signal-to-noise ratio (SNR) calculations—in pure Python. It is engineered to provide precise, high-concurrency computational support for upper-level astronomical web applications.
+
+### 1.2 Core Value
+
+Traditional astronomical exposure time calculators are often tightly coupled with the hardware equipment of specific observatories or exist as monolithic scripts that are difficult to maintain and integrate with modern web services. CASTOR achieves exceptional universality by completely decoupling physical formulas from hardware parameters. Any combination of optical telescopes and sensors can seamlessly invoke this engine for dynamic batch calculations, provided they adhere to the standard data contract.
+
+### 1.3 System Context & Boundary
+
+To maintain the purity and high performance of the core engine, a strict division of responsibilities and a clear data transformation pipeline are established. While CASTOR is natively integrated with the [Kinder](https://kinder.astro.ncu.edu.tw) ecosystem, its decoupled architecture allows it to be invoked by any external application:
+
+```Mermaid
+flowchart TD
+    %% 定義終端使用者
+    User((User / Astronomer))
+
+    %% 定義 Client Layer 節點
+    KinderClient["<b>Kinder Frontend</b><br>• Renders UI/UX<br>• Collects user inputs for target & environment"]
+    OtherClient["<b>Other Web Apps / Scripts</b><br>• Custom data collection"]
+
+    %% 定義 API Layer 節點
+    KinderAPI["<b>Kinder Backend API</b><br>• Routing, Auth & Rate Limiting<br>• Queries database for Hardware Presets<br>• Constructs final payload"]
+    OtherAPI["<b>Custom / 3rd Party APIs</b><br>• Alternative backend logic<br>• Constructs final payload"]
+
+    %% 定義 Core Engine 節點
+    CASTOR["<b>CASTOR (Core Engine)</b><br>• Strict Type & Mutex Validation (schema.py)<br>• Pre-computation & Batch Orchestration (calculator.py)<br>• Pure Physics Equation Solver (physics.py)"]
+
+    %% 資料流向：使用者到前端
+    User -- "UI Input / Web Forms" --> KinderClient
+    User -- "Custom Inputs" --> OtherClient
+
+    %% 資料流向：前端到 API
+    KinderClient -- "HTTP Request: JSON Payload" --> KinderAPI
+    OtherClient -- "HTTP Request: JSON Payload" --> OtherAPI
+    
+    %% (選用) 外部 Client 也可以直接打 Kinder 的 API
+    OtherClient -. "HTTP Request (Optional)" .-> KinderAPI
+
+    %% 資料流向：API 到 CASTOR 核心
+    KinderAPI -- "Python Function Call:<br>Pydantic Object" --> CASTOR
+    OtherAPI -- "Python Function Call:<br>Pydantic Object" --> CASTOR
+
+    %% 設定視覺樣式
+    style CASTOR fill:#f9f0ff,stroke:#9370db,stroke-width:2px
+    style KinderClient fill:#e6f3ff,stroke:#4da6ff,stroke-width:1px
+    style KinderAPI fill:#e6f3ff,stroke:#4da6ff,stroke-width:1px
+    style OtherClient fill:#f9f9f9,stroke:#b3b3b3,stroke-width:1px,stroke-dasharray: 5 5
+    style OtherAPI fill:#f9f9f9,stroke:#b3b3b3,stroke-width:1px,stroke-dasharray: 5 5
+```
+
+#### In Scope for CASTOR
+
+##### A. Core Computational Engine
+
+* **Bidirectional Solvers:** Calculating Signal-to-Noise Ratio (SNR) from a given exposure time, and reverse-calculating required exposure times from a target SNR using an exact analytical quadratic solver.
+* **Metric Generation:** Computing total observation time, independent noise contributors (read noise, dark current), electron count rates (source/sky), pixel scale, and sensor saturation flags.
+
+##### B. Data Contract & Batch Orchestration
+
+* **Strict Validation:** Enforcing physical boundaries (e.g., $0.0-1.0$ limits) and logical mutual exclusivity (time vs. SNR) via Pydantic schemas.
+* **Polymorphic Time-Domain Expansion:** Ingesting continuous time-range contracts (start, end, step) and automatically expanding them into high-resolution discrete arrays.
+* **Vectorized Processing:** Utilizing NumPy for $O(1)$ batch processing of scalar values, discrete arrays, and expanded matrices without Python-level iteration overhead.
+
+##### C. Astronomical & Environmental Modeling
+
+* **Target Morphologies & SEDs:** Supporting both point sources (apparent magnitude) and extended sources (surface brightness), alongside Spectral Energy Distribution (SED) templates for accurate cross-band flux calculations.
+* **Dynamic Ephemeris & Background:** Automatically computing instantaneous Airmass, Moon phase, Moon position, and dynamic sky background contributions based on target coordinates and observation timestamps.
+* **Atmospheric Corrections:** Applying atmospheric extinction and Point Spread Function (PSF) enclosed-flux modeling.
+
+##### D. Hardware Optics & Sensor Modeling
+
+* **Optical Train Aggregation:** Calculating effective light-gathering area (accounting for obstruction) and total system optical throughput.
+* **Dynamic Sensor Configurations:** Adjusting read noise, pixel scale, full-well capacity, and readout overhead dynamically based on user-defined Binning modes (e.g., 1x1, 2x2) and amplifier counts.
+
+##### E. Catalog Resolution (星表解析)
+
+* **External Integration:** Querying external astronomical databases (e.g., SIMBAD) to dynamically resolve celestial target names into precise RA/Dec coordinates and baseline magnitudes.
+
+#### Out of Scope for CASTOR
+
+To maintain its identity as a lightweight, high-performance computational kernel, CASTOR intentionally delegates the following responsibilities to the parent ecosystem (e.g., [Kinder](https://kinder.astro.ncu.edu.tw)):
+
+##### A. Data Persistence & State Management
+
+* **No Hardware Databases:** It does not store default parameter presets for specific observatories, telescopes, or filter zero-points.
+* **Stateless Execution:** It does not maintain historical user calculation logs, session states, or user profiles. Every calculation is entirely self-contained.
+
+##### B. Network & Infrastructure
+
+* **No Web Serving:** It does not handle inbound HTTP requests, serve web traffic, or provide API routing (e.g., FastAPI/Flask instances).
+* **No Security Middleware:** It does not manage API authentication (OAuth/JWT), authorization, database connection pooling, or rate limiting.
+
+##### C. User Interface & Visualization
+
+* **No Frontend Components:** It does not generate HTML, CSS, JavaScript, or interactive web forms.
+* **No Graphical Plotting:** It outputs pure mathematical arrays and scalar metrics; it does not render visibility curves or data plots (e.g., Matplotlib/Plotly figures).
+
+##### D. High-Level Scheduling & Operations
+
+* **No Queue Optimization:** While optimized to *support* schedulers, CASTOR itself does not decide the optimal observation order for targets or generate automated telescope operation queues.
+* **No Hardware Constraint Checking:** It does not evaluate telescope mechanical pointing limits (e.g., dome slit collisions or altitude limits) or integrate with real-time weather forecasts.
+
+## 2. Design Principles
+
+## 3. Data Contracts & Schema
 
 The CASTOR project utilizes Pydantic models for strict data validation. The core data structure is designed around the principle of separating "Hardware Configuration" from "Observation Conditions." This ensures type safety and physical unit correctness when passing parameters across different modules.
 
 You can see the complete code definition at [`src/castor/schema.py`](src/castor/schema.py).
 
-### 1. Hardware Models
+### 3.1 Hardware Models
 
 These models define the physical and optical characteristics of the observatory's hardware equipment.
 
@@ -54,7 +161,7 @@ Defines the characteristics of the optical filter band.
 
 ---
 
-### 2. Request & Response Contracts
+### 3.2 Request & Response Contracts
 
 This section defines the interface for the frontend or external systems interacting with the CASTOR calculation core.
 
@@ -98,17 +205,10 @@ This model integrates hardware parameters with specific observation conditions. 
 
 Structured output from the CASTOR calculator. Each list item corresponds to the respective input in the request. For array inputs, the returned secondary metrics will be arrays of the corresponding lengths. *(Note: As a response model, fields do not have defaults.)*
 
-##### A. Primary Calculation Outputs
-
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `snr` | `Optional[list[float]]` | The calculated Signal-to-Noise Ratio array. |
 | `exposure_time` | `Optional[list[float]]` | The calculated exposure time array. |
-
-##### B. Physical Metrics & Constants
-
-| Parameter | Type | Description |
-| :--- | :--- | :--- |
 | `total_noise_e` | `Optional[list[float]]` | Total noise calculated for each data point in electrons. |
 | `is_saturated` | `list[bool]` | True if the signal exceeds Full Well Capacity at each point. |
 | `total_observation_time_sec` | `list[float]` | Exposure + Readout time for each calculated point. |
@@ -116,9 +216,10 @@ Structured output from the CASTOR calculator. Each list item corresponds to the 
 | `sky_rate_e_sec_pix` | `float` | Sky background rate per pixel. |
 | `pixel_scale` | `float` | Arcsec per pixel. |
 | `readout_time_sec` | `float` | Fixed time to read the CCD. |
-
-##### C. Execution Information
-
-| Parameter | Type | Description |
-| :--- | :--- | :--- |
 | `warnings` | `list[str]` | List of warning messages generated during calculation. |
+
+## Component Architecture
+
+## Data Flow
+
+## Future Extensibility
