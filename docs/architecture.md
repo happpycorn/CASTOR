@@ -28,7 +28,7 @@ flowchart TD
     OtherAPI["<b>Custom / 3rd Party APIs</b><br>• Alternative backend logic<br>• Constructs final payload"]
 
     %% 定義 Core Engine 節點
-    CASTOR["<b>CASTOR (Core Engine)</b><br>• Strict Type & Mutex Validation (schema.py)<br>• Pre-computation & Batch Orchestration (calculator.py)<br>• Pure Physics Equation Solver (physics.py)"]
+    CASTOR["<b>CASTOR (Core Engine)</b><br>• Strict Type & Mutex Validation<br>• Pre-computation & Batch Orchestration<br>• Pure Physics Equation Solver"]
 
     %% 資料流向：使用者到前端
     User -- "UI Input / Web Forms" --> KinderClient
@@ -77,10 +77,6 @@ flowchart TD
 * **Optical Train Aggregation:** Calculating effective light-gathering area (accounting for obstruction) and total system optical throughput.
 * **Dynamic Sensor Configurations:** Adjusting read noise, pixel scale, full-well capacity, and readout overhead dynamically based on user-defined Binning modes (e.g., 1x1, 2x2) and amplifier counts.
 
-##### E. Catalog Resolution
-
-* **External Integration:** Querying external astronomical databases (e.g., SIMBAD) to dynamically resolve celestial target names into precise RA/Dec coordinates and baseline magnitudes.
-
 #### Out of Scope for CASTOR
 
 To maintain its identity as a lightweight, high-performance computational kernel, CASTOR intentionally delegates the following responsibilities to the parent ecosystem (e.g., [Kinder](https://kinder.astro.ncu.edu.tw)):
@@ -117,7 +113,6 @@ src/castor/
 ├── __init__.py        # Package Entry Point
 ├── calculator.py      # Main Orchestrator & Batch Processing
 ├── schema.py          # Data Contracts & Mutex Validation
-├── catalogs.py        # External Network Boundaries & Catalog Resolvers
 ├── ephemeris.py       # Astrometry, Time & Environment Modeling
 ├── optics.py          # Hardware & Optical Train Modeling
 ├── physics.py         # Pure Mathematical & Physics Engine
@@ -129,8 +124,6 @@ src/castor/
 * **`calculator.py`:** The system's traffic controller. It receives validated requests, gathers missing parameters from domain modules (`catalogs`, `ephemeris`, `optics`), feeds the aggregated NumPy arrays into `physics.py`, and packages the final response.
 
 * **`schema.py`:** Defines Pydantic models to block invalid data at the door. It enforces physical boundaries (e.g., transmission rates strictly between $0.0$ and $1.0$) and logical mutual exclusivity (e.g., requiring either exposure time or target SNR, but not both).
-
-* **`catalogs.py`:** The *only* module in the system authorized to make HTTP requests. It queries external databases (e.g., SIMBAD) to dynamically resolve celestial target names into precise RA/Dec coordinates and baseline magnitudes.
 
 * **`ephemeris.py`:** Handles dynamic variables related to time and space using pure local mathematics (no external API calls). It calculates instantaneous Airmass, Moon phase, and sky background based on observation timestamps and coordinates.
 
@@ -173,7 +166,7 @@ sequenceDiagram
     box rgba(168, 113, 255, 0.05) CASTOR Core Engine
         participant Calc as calculator.py
         participant Schema as schema.py
-        participant Domain as Domain Models<br/>(catalogs, ephemeris, optics)
+        participant Domain as Domain Models<br/>(ephemeris, optics)
         participant Physics as physics.py
     end
 
@@ -190,7 +183,6 @@ sequenceDiagram
         Note over Calc, Domain: Phase 2: Context Enrichment<br/>(Resolving missing physical & environmental data)
         
         %% 將過長的動作標籤折行
-        Calc->>Domain: Resolve Target(SIMBAD) -> RA/Dec
         Calc->>Domain: Compute Environment -> Airmass, Moon Phase
         Calc->>Domain: Compute Hardware -> Effective Area, Read Noise
         Domain-->>Calc: Aggregated Parameters
