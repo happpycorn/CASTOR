@@ -28,7 +28,7 @@ flowchart TD
     OtherAPI["<b>Custom / 3rd Party APIs</b><br>• Alternative backend logic<br>• Constructs final payload"]
 
     %% 定義 Core Engine 節點
-    CASTOR["<b>CASTOR (Core Engine)</b><br>• Strict Type & Mutex Validation (schema.py)<br>• Pre-computation & Batch Orchestration (calculator.py)<br>• Pure Physics Equation Solver (physics.py)"]
+    CASTOR["<b>CASTOR (Core Engine)</b><br>• Strict Type & Mutex Validation<br>• Pre-computation & Batch Orchestration<br>• Pure Physics Equation Solver"]
 
     %% 資料流向：使用者到前端
     User -- "UI Input / Web Forms" --> KinderClient
@@ -77,10 +77,6 @@ flowchart TD
 * **Optical Train Aggregation:** Calculating effective light-gathering area (accounting for obstruction) and total system optical throughput.
 * **Dynamic Sensor Configurations:** Adjusting read noise, pixel scale, full-well capacity, and readout overhead dynamically based on user-defined Binning modes (e.g., 1x1, 2x2) and amplifier counts.
 
-##### E. Catalog Resolution
-
-* **External Integration:** Querying external astronomical databases (e.g., SIMBAD) to dynamically resolve celestial target names into precise RA/Dec coordinates and baseline magnitudes.
-
 #### Out of Scope for CASTOR
 
 To maintain its identity as a lightweight, high-performance computational kernel, CASTOR intentionally delegates the following responsibilities to the parent ecosystem (e.g., [Kinder](https://kinder.astro.ncu.edu.tw)):
@@ -117,7 +113,6 @@ src/castor/
 ├── __init__.py        # Package Entry Point
 ├── calculator.py      # Main Orchestrator & Batch Processing
 ├── schema.py          # Data Contracts & Mutex Validation
-├── catalogs.py        # External Network Boundaries & Catalog Resolvers
 ├── ephemeris.py       # Astrometry, Time & Environment Modeling
 ├── optics.py          # Hardware & Optical Train Modeling
 ├── physics.py         # Pure Mathematical & Physics Engine
@@ -126,11 +121,9 @@ src/castor/
 
 ### Module Responsibilities
 
-* **`calculator.py`:** The system's traffic controller. It receives validated requests, gathers missing parameters from domain modules (`catalogs`, `ephemeris`, `optics`), feeds the aggregated NumPy arrays into `physics.py`, and packages the final response.
+* **`calculator.py`:** The system's traffic controller. It receives validated requests, gathers missing parameters from domain modules (`ephemeris`, `optics`), feeds the aggregated NumPy arrays into `physics.py`, and packages the final response.
 
 * **`schema.py`:** Defines Pydantic models to block invalid data at the door. It enforces physical boundaries (e.g., transmission rates strictly between $0.0$ and $1.0$) and logical mutual exclusivity (e.g., requiring either exposure time or target SNR, but not both).
-
-* **`catalogs.py`:** The *only* module in the system authorized to make HTTP requests. It queries external databases (e.g., SIMBAD) to dynamically resolve celestial target names into precise RA/Dec coordinates and baseline magnitudes.
 
 * **`ephemeris.py`:** Handles dynamic variables related to time and space using pure local mathematics (no external API calls). It calculates instantaneous Airmass, Moon phase, and sky background based on observation timestamps and coordinates.
 
@@ -140,181 +133,176 @@ src/castor/
 
 * **`exceptions.py`:** Centralizes CASTOR-specific error classes (e.g., `TargetNotFoundError`, `PhysicsBoundaryError`) to provide clear, actionable error traces for the parent system.
 
----
-
-> [!WARNING]
-> **Work In Progress**
-> The following sections are currently under construction and may be incomplete.
-
 ## 3. Design Principles
 
 ### 3.1 Separation of Concerns
 
+CASTOR strictly isolates physical phenomena from software execution logic. The architecture is built around four distinct domain pillars: Instrument, Target, Environment, and Strategy. By decoupling static hardware definitions from dynamic atmospheric conditions and human-driven observation strategies, the core engine remains purely mathematical. Furthermore, internal modules are strictly segregated: `schema.py` handles I/O and validation, domain modules (`optics.py`, `ephemeris.py`) handle context enrichment, and `physics.py` is dedicated exclusively to mathematical solving.
+
 ### 3.2 Contract-Driven & Fail-Fast
+
+The system treats the calculation boundary as a strict contract. Utilizing Pydantic models, CASTOR validates all incoming requests at the very edge of the application (Phase 1: Ingress). It enforces both physical boundaries (e.g., optical transmissions must be between $0.0$ and $1.0$) and logical mutual exclusivity (e.g., requesting both `exposure_time` and `target_snr` simultaneously is forbidden). If a contract is violated, the system immediately rejects the request with a precise error trace, ensuring that the underlying physics engine never executes on invalid or unphysical data.
 
 ### 3.3 Statelessness
 
+CASTOR is designed as a pure computational kernel. It does not maintain user sessions, historical calculation logs, or hardware databases. Every `ObservationRequest` must be entirely self-contained, carrying all necessary configurations and parameters required for the calculation. This pure $f(\text{input}) = \text{output}$ design ensures that the engine is highly thread-safe, trivially cacheable, and easily scalable for high-concurrency batch processing when invoked by upper-level web APIs.
+
 ### 3.4 Analytical Determinism
 
-### 3.5 Vectorized Batch Optimization
+To guarantee high performance and exact reproducibility, CASTOR avoids iterative approximations or randomized simulations whenever possible. The core computational layer (`physics.py`) relies on exact analytical solvers—such as deterministic quadratic equations to resolve required exposure times from target SNRs. For any identical set of validated inputs, the engine will consistently yield the exact same mathematical outputs in strict $O(1)$ time complexity per data point, making it highly reliable for automated telescope scheduling systems.
 
 ## 4. Data Flow & Lifecycle
+
+CASTOR processes each calculation request through a straightforward, step-by-step pipeline. When a request arrives, the engine first validates the input data to catch physical errors or conflicting settings immediately. It then aggregates any missing observation conditions, target coordinates, or hardware specifications using its internal modules. Finally, these completed parameters are passed to the core physics engine to compute the required exposure time or signal-to-noise ratio (SNR), and the final metrics are formatted and returned as the response.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Client as External Caller (API/Web)
-    participant Calc as calculator.py (Orchestrator)
-    participant Schema as schema.py (Gatekeeper)
-    participant Domain as Domain Models (catalogs, ephemeris, optics)
-    participant Physics as physics.py (Math Engine)
+    
+    %% 將過長的名字加上 <br/> 來節省橫向空間
+    actor Client as External Caller<br/>(API/Web)
+    
+    %% 使用 rgba 產生淡淡的紫色光暈，對齊 Flowchart 的 CASTOR 外框
+    box rgba(168, 113, 255, 0.05) CASTOR Core Engine
+        participant Calc as calculator.py
+        participant Schema as schema.py
+        participant Domain as Domain Models<br/>(ephemeris, optics)
+        participant Physics as physics.py
+    end
 
     %% Phase 1: Ingress & Validation
     Client->>Calc: Request Calculation (JSON/Dict)
     activate Calc
     Calc->>Schema: Validate Input Constraints & Mutex
     activate Schema
-    alt Invalid Input (e.g., negative time)
-        Schema-->>Client: Raise ValidationError (Fail-Fast)
-    end
     Schema-->>Calc: Validated Pydantic Object
     deactivate Schema
 
-    %% Phase 2: Context Enrichment
-    rect rgb(240, 248, 255)
-        Note over Calc, Domain: Phase 2: Context Enrichment (Resolving Missing Data)
-        Calc->>Domain: Resolve Target (SIMBAD) -> RA/Dec
+    %% Phase 2: Context Enrichment (Kinder 藍色背景)
+    rect rgba(43, 140, 255, 0.1)
+        Note over Calc, Domain: Phase 2: Context Enrichment<br/>(Resolving missing physical & environmental data)
+        
+        %% 將過長的動作標籤折行
         Calc->>Domain: Compute Environment -> Airmass, Moon Phase
         Calc->>Domain: Compute Hardware -> Effective Area, Read Noise
-        Domain-->>Calc: Aggregated Scalar/Vector Parameters
+        Domain-->>Calc: Aggregated Parameters
     end
 
-    %% Phase 3: Vectorization
-    Note over Calc: Phase 3: Vectorization<br/>Expand time ranges & align dimensions into NumPy Arrays.
+    %% Phase 3: Core Computation (CASTOR 紫色背景)
+    rect rgba(168, 113, 255, 0.1)
+        Note over Calc, Physics: Phase 3: Core Computation
+        
+        opt Input Detected
+            Note over Calc: Vectorization: Align dimensions<br/>& expand into NumPy Arrays
+        end
+        
+        Calc->>Physics: solve_snr() / solve_time()
+        activate Physics
+        Note over Physics: Mathematical Solving
+        Physics-->>Calc: Result Matrix / Scalar
+        deactivate Physics
+    end
 
-    %% Phase 4: Core Computation
-    Calc->>Physics: solve_snr(numpy_arrays) / solve_time(numpy_arrays)
-    activate Physics
-    Note over Physics: Pure O(1) Mathematical Solving (No side-effects)
-    Physics-->>Calc: Result Matrix (NumPy Arrays)
-    deactivate Physics
-
-    %% Phase 5: Egress
+    %% Phase 4: Egress
     Calc->>Schema: Package into CastorResponse
     Schema-->>Calc: Validated Response Object
     Calc-->>Client: Return Result Payload
     deactivate Calc
 ```
 
+### 4.1 Lifecycle Phases Breakdown
+
+#### Phase 1: Ingress & Validation
+
+* **Input**: A JSON payload or Python dictionary containing the user's observation parameters and hardware configurations.
+* **Action**: The `schema.py` module uses Pydantic to strictly validate the incoming data against two main constraints:
+  1. **Physical Limits**: Ensures values conform to real-world physics (e.g., exposure times must be positive, and optical transmission rates must fall strictly between 0.0 and 1.0).
+  2. **Mutual Exclusivity**: Enforces the core logic requiring the caller to provide either `exposure_time` or `target_snr`, but never both.
+* **Output**: A validated Pydantic object (`ObservationRequest`). If any check fails, the system immediately rejects the request with a validation error to protect the core engine.
+
+#### Phase 2: Context Enrichment
+
+* **Input**: The validated `ObservationRequest` object.
+* **Action**: Action: Determines if the incoming input has missing data or requires complementation by other functions. It then invokes the corresponding internal functions to calculate and fill in these gaps.
+* **Output**: A complete, aggregated set of parameters ready for the mathematical formulas.
+
+#### Phase 3: Core Computation
+
+* **Input**: The enriched and aggregated parameter set.
+* **Action**:
+  1. **Optional Vectorization**: If the request contains arrays or continuous time ranges, the engine automatically aligns these dimensions and expands them into NumPy arrays to process the entire batch simultaneously without using slow Python loops.
+  2. **Mathematical Solving**: The `physics.py` module takes these raw numbers or matrices and runs the core analytical formulas via `some_function()` or `some_function()`. This layer handles pure mathematics and contains no network or database dependencies.
+* **Output**: Raw numerical results (scalars or matrices) representing the calculated SNR or exposure times.
+
+#### Phase 4: Egress
+
+* **Input**: The raw numerical outputs from the physics engine.
+* **Action**: The orchestrator maps the raw numbers into the final structured output layout. During this step, it also performs hardware boundary checks, such as verifying if the signal level exceeds the sensor's full-well capacity to flag pixel saturation (`is_saturated`).
+* **Output**: A validated `CastorResponse` object, which is returned safely to the external client.
+
 ## 5. Data Contracts & Schema
 
-The CASTOR project utilizes Pydantic models for strict data validation. The core data structure is designed around the principle of separating "Hardware Configuration" from "Observation Conditions." This ensures type safety and physical unit correctness when passing parameters across different modules.
+The CASTOR project utilizes Pydantic models for strict data validation. For the exhaustive list of parameters, data types, physical units, and validation boundaries, please refer to the [API Documentation](docs/api_spec.md). You can see the complete code definition at [`src/castor/schema.py`](src/castor/schema.py).
 
-You can see the complete code definition at [`src/castor/schema.py`](src/castor/schema.py).
+### 5.1 Request Schema
 
-### 3.1 Hardware Models
+To ensure maintainability and preserve the purity of the underlying physics calculations, the CASTOR engine structures its incoming data payload (`ObservationRequest`) using a Domain-Driven Design approach. Rather than flattening all parameters into a single monolithic object, the request is strictly segregated into four independent pillars.
 
-These models define the physical and optical characteristics of the observatory's hardware equipment.
+This modularity fully decouples the physical realities of the observatory from the software-level execution logic, allowing the core physics solver to maintain stateless, high-performance execution.
 
-#### `TelescopeSchema`
+* **Instrument Profile (`instrument`)**: Defines the static hardware components responsible for capturing light. To maximize reusability, it is further subdivided into the telescope's optical system, the camera's sensor electronics, and the passband filter. Notably, the filter schema is designated as `optic_filter` to prevent shadowing Python's built-in `filter` function.
+* **Target Profile (`target`)**: Defines the intrinsic physical properties of the celestial source. To prevent users from accidentally submitting conflicting data (such as providing both `"apparent magnitude"` for a star and `"surface brightness"` for a galaxy simultaneously), we avoid using a single, monolithic structure. Instead, the target relies on a specific type tag (e.g., `"point"` or `"extended"`) to seamlessly switch to the appropriate data format. This ensures that invalid data combinations are immediately blocked at the very edge of the system. Once the data reaches the core physics engine, the code can use pattern matching directly on the target type—routing point sources to PSF-based flux equations and extended sources to surface brightness formulas. This approach completely eliminates the need for complex and hard-to-maintain nested `if-else` branching within the core engine.
+* **Environment Condition (`environment`)**: Defines the atmospheric and situational context that alters the target's light before it reaches the telescope. By implementing this as a discriminated union from the start, the architecture leaves a clean path to introduce other environment type in the future without breaking the existing API contract or core engine logic.
+* **Calculation Options (`options`)**: Acts as the software control interface. It separates human-driven observation strategies and runtime overrides—such as toggling between target SNR and exposure time calculations—from the objective physical parameters.
 
-Defines the core parameters of the light-gathering system.
+```mermaid
+graph TD
+    %% Core Root
+    Root[ObservationRequest]
 
-| Parameter | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `diameter_m` | `float` (>0) | (Required) | Diameter of the primary mirror in meters (m). |
-| `focal_length_m` | `float` (>0) | (Required) | Effective focal length of the telescope in meters (m). |
-| `m1_reflectance` | `float` (0~1) | 0.92 | Reflectance of the primary mirror (M1). |
-| `m2_reflectance` | `float` (0~1) | 0.92 | Reflectance of the secondary mirror (M2). |
-| `glass_transmission` | `float` (0~1) | 0.95 | Transmission rate of any corrective glass or dewar window. |
-| `central_obstruction_linear_ratio` | `float` (0~1) | 0.0 | Linear ratio of the central obstruction (secondary / primary mirror diameter). |
+    %% Domain Pillars (Pydantic Fields & Types)
+    P1[instrument<br/>: InstrumentProfile]
+    P2[target<br/>: TargetProfile<br/><i>Discriminated Union</i>]
+    P3[environment<br/>: EnvironmentCondition]
+    P4[options<br/>: CalculationOptions]
 
-#### `CameraSchema`
+    Root --> P1 & P2 & P3 & P4
 
-Defines the geometry, noise characteristics, and readout electronics of the CCD/CMOS sensor.
+    %% Instrument Profile Sub-schemas
+    P1 --> P1_1[telescope: <br/>TelescopeSchema]
+    P1 --> P1_2[camera: <br/>CameraSchema]
+    P1 --> P1_3[optic_filter: <br/>FilterSchema]
 
-| Parameter | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `pixel_size_micron` | `float` (>0) | (Required) | Physical size of a single pixel in microns (μm). |
-| `resolution_x/y` | `int` (>0) | (Required) | Number of pixels in the X/Y dimension. |
-| `read_noise_e` | `float` (≥0) | (Required) | Readout noise in electrons per pixel (e-/pix). |
-| `dark_current_e_per_sec` | `float` (≥0) | 0.1 | Dark current rate in electrons per second per pixel (e-/sec/pix). |
-| `quantum_efficiency` | `float` (0~1) | (Required) | Quantum efficiency (QE) of the detector at the observed band. |
-| `readout_speed_khz` | `float` (>0) | 100.0 | Sampling rate of the readout electronics (kHz). |
-| `n_amplifiers` | `int` (>0) | 1 | Number of amplifiers used during the readout process. |
-| `gain` | `float` (>0) | 1.0 | Conversion gain from electrons to ADU (e-/ADU). |
-| `full_well_capacity_e` | `float` (>0) | None | (Optional) Maximum electron capacity per pixel before saturation. |
+    %% Target Profile Sub-schemas (Polymorphism)
+    P2 --> P2_1[PointTarget]
+    P2 --> P2_2[ExtendedTarget]
+    P2 --> P2_3[Other...]
 
-#### `FilterSchema`
+    %% Styling
+    style Root fill:transparent,stroke:#a871ff,stroke-width:3px
+    style P1 fill:transparent,stroke:#2b8cff,stroke-width:2px
+    style P2 fill:transparent,stroke:#2b8cff,stroke-width:2px
+    style P3 fill:transparent,stroke:#2b8cff,stroke-width:2px
+    style P4 fill:transparent,stroke:#2b8cff,stroke-width:2px
+    
+    %% Highlight Polymorphic branches
+    style P2_1 fill:transparent,stroke:#ff8c2b,stroke-width:2px,stroke-dasharray: 5 5
+    style P2_2 fill:transparent,stroke:#ff8c2b,stroke-width:2px,stroke-dasharray: 5 5
+    style P2_3 fill:transparent,stroke:#ff8c2b,stroke-width:2px,stroke-dasharray: 5 5
+```
 
-Defines the characteristics of the optical filter band.
+### 5.2 Response Schema
 
-| Parameter | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `name` | `str` | (Required) | Name of the filter band (e.g., 'V', 'R', 'I', 'Ha'). |
-| `central_wavelength_nm` | `float` (>0) | (Required) | Central wavelength of the filter in nanometers (nm). |
-| `fwhm_nm` | `float` (>0) | (Required) | Full Width at Half Maximum (FWHM) of the passband in nanometers (nm). |
-| `peak_transmission` | `float` (0~1) | 0.9 | Maximum transmission ratio of the filter. |
-| `zero_mag_flux` | `float` | (Required) | Flux of a 0-magnitude star for this band (W m^-2 m^-1). |
-| `default_extinction` | `float` | 0.15 | Default atmospheric extinction coefficient (mag/airmass). |
+Similar to the request structure, the `CastorResponse` model is designed to be highly deterministic and easily consumable by the parent system or external APIs.
 
----
+The response strictly avoids UI-specific formatting, presentation layers, or plotting objects, focusing purely on returning raw mathematical value and physical metrics. The output is logically grouped into the following categories:
 
-### 3.2 Request & Response Contracts
-
-This section defines the interface for the frontend or external systems interacting with the CASTOR calculation core.
-
-#### `ObservationRequest`
-
-This model integrates hardware parameters with specific observation conditions. It implements a `@model_validator` to enforce mutual exclusivity between calculation modes.
-
-> **Core Logic Control:**
-> Users must provide *exactly one* of the following: `exposure_time` (to calculate Signal-to-Noise Ratio) OR `target_snr` (to calculate required exposure time). Both fields accept arrays to support batch calculations.
-
-##### A. Hardware & Target Configuration
-
-| Parameter | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `telescope` | `TelescopeSchema` | (Required) | Complete hardware configuration for the telescope. |
-| `camera` | `CameraSchema` | (Required) | Complete hardware configuration for the camera. |
-| `instrument_filter` | `FilterSchema` | (Required) | Complete hardware configuration for the filter. |
-| `target_mag` | `float` | (Required) | Apparent magnitude of the target celestial object. |
-
-##### B. Environmental Conditions
-
-| Parameter | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `sky_brightness_mag_arcsec2` | `float` | (Required) | Sky background brightness in magnitude per square arcsecond (mag/arcsec^2). |
-| `airmass` | `float` (1.0~5.0) | 1.0 | Airmass of the observation. |
-| `seeing_fwhm_arcsec` | `float` (>0) | 1.5 | Atmospheric seeing FWHM in arcseconds. |
-| `extinction_coeff` | `Optional[float]` | None | Atmospheric extinction coefficient. If None, uses the filter's default. |
-
-##### C. Control & Advanced Settings
-
-| Parameter | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `exposure_time` | `Optional[list[float]]` (>0) | None | Exposure time in seconds. Input for SNR calculation. |
-| `target_snr` | `Optional[list[float]]` (>0) | None | Requested Signal-to-Noise Ratio. Input for time calculation. |
-| `gain_override` | `Optional[float]` (>0) | None | Override the camera's hardware gain for specific scenarios (e.g., CMOS modes). |
-| `aperture_radius_arcsec` | `Optional[float]` (>0) | None | Software aperture radius in arcseconds. If None, defaults to 1.5x seeing. |
-
----
-
-#### `CastorResponse`
-
-Structured output from the CASTOR calculator. Each list item corresponds to the respective input in the request. For array inputs, the returned secondary metrics will be arrays of the corresponding lengths. *(Note: As a response model, fields do not have defaults.)*
-
-| Parameter | Type | Description |
-| :--- | :--- | :--- |
-| `snr` | `Optional[list[float]]` | The calculated Signal-to-Noise Ratio array. |
-| `exposure_time` | `Optional[list[float]]` | The calculated exposure time array. |
-| `total_noise_e` | `Optional[list[float]]` | Total noise calculated for each data point in electrons. |
-| `is_saturated` | `list[bool]` | True if the signal exceeds Full Well Capacity at each point. |
-| `total_observation_time_sec` | `list[float]` | Exposure + Readout time for each calculated point. |
-| `source_rate_e_sec` | `float` | Source signal rate. |
-| `sky_rate_e_sec_pix` | `float` | Sky background rate per pixel. |
-| `pixel_scale` | `float` | Arcsec per pixel. |
-| `readout_time_sec` | `float` | Fixed time to read the CCD. |
-| `warnings` | `list[str]` | List of warning messages generated during calculation. |
+* **Core Solved Metrics**: The primary objective of the calculation, returning either the computed exposure time or the SNR, strictly depending on the mutually exclusive input strategy.
+* **Secondary Diagnostics**: Intermediate physical values computed during calculation, such as total noise electrons, source signal rate, and sky background rate per pixel. Exposing these allows the calling client to render detailed breakdown charts if required.
+* **System Metadata**: Standardized fields encompassing domain-specific warning messages and operational metrics like total observation time (including readout overhead).
 
 ## 6. Future Extensibility
+
+Vectorized Batch Optimization
+
+TargetProfile to ESO ETC's Form

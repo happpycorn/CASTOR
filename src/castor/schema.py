@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, PositiveFloat, PositiveInt, model_validator
-from typing import Optional
+from typing import Literal, Optional, Union, Annotated
 
 class TelescopeSchema(BaseModel):
     """
@@ -37,6 +37,12 @@ class TelescopeSchema(BaseModel):
         le=1,
         description="Linear ratio of the central obstruction (secondary mirror diameter / primary mirror diameter)."
     )
+    additional_throughput: float = Field(
+        1.0,
+        ge=0,
+        le=1,
+        description="Combined optical transmission efficiency (0.0 to 1.0) of any auxiliary optics not explicitly covered, such as focal reducers, field flatteners, or a tertiary mirror (M3)."
+    )
 
 class CameraSchema(BaseModel):
     """
@@ -73,6 +79,14 @@ class CameraSchema(BaseModel):
         le=1, 
         description="Quantum efficiency (QE) of the detector at the observed band."
     )
+    binning_x: PositiveInt = Field(
+        1,
+        description="Hardware pixel binning factor along the X dimension (width). Combines adjacent pixels to increase signal-to-noise ratio (SNR) at the cost of spatial resolution."
+    )
+    binning_y: PositiveInt = Field(
+        1,
+        description="Hardware pixel binning factor along the Y dimension (height). Combines adjacent pixels to increase signal-to-noise ratio (SNR) at the cost of spatial resolution."
+    )
 
     # 3. Readout Electronics (Required by calc_readout_time)
     readout_speed_khz: float = Field(
@@ -88,6 +102,11 @@ class CameraSchema(BaseModel):
         1.0, 
         gt=0, 
         description="Conversion gain from electrons to ADU (e-/ADU)."
+    )
+    shutter_overhead_sec: float = Field(
+        0.0,
+        ge=0,
+        description="Mechanical shutter opening/closing overhead or readout initialization delay in seconds per single exposure. Crucial for total observation time calculation."
     )
 
     # 4. Safety & Quality Control (Optional but Recommended)
@@ -127,103 +146,222 @@ class FilterSchema(BaseModel):
         description="Default atmospheric extinction coefficient for this band (mag/airmass)."
     )
 
-class ObservationRequest(BaseModel):
+class InstrumentProfile(BaseModel):
     """
-    The complete contract for a CASTOR calculation request.
-    This links hardware parameters with specific observation conditions.
+    The static hardware configuration of the observatory, combining optics, 
+    sensor electronics, and the filter bandpass.
     """
-    # --- 1. Hardware Configuration ---
-    telescope: TelescopeSchema
-    camera: CameraSchema
-    instrument_filter: FilterSchema
-
-    # --- 2. Target Information ---
-    target_mag: float = Field(
-        ..., 
-        description="The apparent magnitude of the target celestial object."
+    telescope: TelescopeSchema = Field(
+        ...,
+        description="Optical and structural parameters of the telescope assembly (e.g., aperture, focal length, throughput modifiers)."
+    )
+    camera: CameraSchema = Field(
+        ...,
+        description="Electronic and geometric properties of the detector sensor (e.g., pixel size, read noise, quantum efficiency, binning modes)."
+    )
+    optic_filter: FilterSchema = Field(
+        ...,
+        description="Characteristics of the selected optical filter band, defining the wavelength window and zero-magnitude flux reference."
     )
 
-    # --- 3. Observation Environment (Mandatory) ---
-    sky_brightness_mag_arcsec2: float = Field(
-        ..., 
-        description="Sky background brightness in magnitude per square arcsecond (mag/arcsec^2)."
+class BaseTarget(BaseModel):
+    """
+    Shared astrophysical properties for all target types.
+    Handles common parameters like SED models and cosmological modifiers.
+    """
+    sed_type: Literal["flat", "blackbody"] = Field(
+        "flat", 
+        description="Spectral Energy Distribution model. 'flat' assumes constant flux across the band; 'blackbody' uses Planck's law."
     )
-    
-    # --- 4. Environmental Variables (With Defaults) ---
-    airmass: float = Field(
-        1.0, 
-        ge=1.0, 
-        le=5.0, 
-        description="Airmass of the observation (1.0 = Zenith)."
-    )
-    seeing_fwhm_arcsec: PositiveFloat = Field(
-        1.5, 
-        description="Atmospheric seeing FWHM in arcseconds. Used for PSF flux fraction."
-    )
-    extinction_coeff: Optional[float] = Field(
+    temperature_k: Optional[PositiveFloat] = Field(
         None, 
-        description="Atmospheric extinction coefficient. If None, use filter's default."
+        description="Blackbody temperature in Kelvin. Required if sed_type is 'blackbody'."
     )
-
-    # --- 5. Calculation Logic Control ---
-    # User must provide either exposure_time to get SNR, or target_snr to get time.
-    exposure_time: Optional[list[PositiveFloat]] = Field(
-        None, 
-        description="Exposure time in seconds. Input for SNR calculation."
-    )
-    target_snr: Optional[list[PositiveFloat]] = Field(
-        None, 
-        description="Requested Signal-to-Noise Ratio. Input for time calculation."
-    )
-
-    # --- 6. Advanced Overrides & Settings ---
-    gain_override: Optional[float] = Field(
-        None, 
-        gt=0, 
-        description="Override the camera's hardware gain for specific scenarios (e.g., CMOS modes)."
-    )
-    aperture_radius_arcsec: Optional[PositiveFloat] = Field(
-        None, 
-        description="Software aperture radius in arcseconds. If None, the calculator will default to 1.5x seeing."
+    redshift: float = Field(
+        0.0, 
+        ge=0.0, 
+        description="Cosmological redshift (z) of the target. Default is 0.0 (local)."
     )
 
     @model_validator(mode='after')
-    def check_calculation_mode(self):
+    def validate_sed_configuration(self):
         """
-        Ensure that exactly one of 'exposure_time' or 'target_snr' is provided.
-        This enforces mutual exclusivity between the two calculation modes.
+        Ensure that temperature is provided when blackbody SED is selected.
         """
-        # (self.exposure_time is None) == (self.target_snr is None) 
-        # is True if both are None or both are provided.
-        if (self.exposure_time is None) == (self.target_snr is None):
-            raise ValueError("Must provide either 'exposure_time' or 'target_snr', but not both.")
+        if self.sed_type == "blackbody" and self.temperature_k is None:
+            raise ValueError("Field 'temperature_k' must be provided when 'sed_type' is 'blackbody'.")
         return self
 
-class CastorResponse(BaseModel):
+
+class PointTarget(BaseTarget):
     """
-    Structured output from the CASTOR calculator.
-    Each list item corresponds to the respective input in the request.
+    Data contract for point-source celestial objects (e.g., stars, unresolved quasars).
     """
-    # Primary Results (Arrays)
-    snr: Optional[list[float]] = None
-    exposure_time: Optional[list[float]] = None
-    
-    # Secondary Physics Metrics (Arrays for each calculated point)
-    total_noise_e: Optional[list[float]] = None
-    is_saturated: list[bool] = Field(
-        default_factory=list, 
-        description="True if the signal exceeds Full Well Capacity at each point."
+    type: Literal["point"] = Field(
+        "point", 
+        description="Target morphology identifier."
     )
-    total_observation_time_sec: list[float] = Field(
-        default_factory=list, 
-        description="Exposure + Readout for each point."
+    target_mag: float = Field(
+        ..., 
+        description="The apparent magnitude of the point source in the observed band."
     )
 
-    # Constant Metrics (Single values for the whole request)
-    source_rate_e_sec: float = Field(..., description="Source signal rate.")
-    sky_rate_e_sec_pix: float = Field(..., description="Sky background rate per pixel.")
-    pixel_scale: float = Field(..., description="Arcsec per pixel.")
-    readout_time_sec: float = Field(..., description="Fixed time to read the CCD.")
+class ExtendedTarget(BaseTarget):
+    """
+    Data contract for extended celestial objects (e.g., galaxies, nebulae, comets).
+    """
+    type: Literal["extended"] = Field(
+        "extended", 
+        description="Target morphology identifier."
+    )
+    surface_brightness: float = Field(
+        ..., 
+        description="Surface brightness of the extended source in mag/arcsec^2."
+    )
+
+TargetProfile = Annotated[
+    Union[PointTarget, ExtendedTarget], 
+    Field(discriminator="type")
+]
+
+class ManualEnvironment(BaseModel):
+    """
+    MVP: Manual environmental conditions provided directly by the caller.
+    Future versions can introduce 'DynamicEnvironment' to calculate these 
+    from RA/Dec and timestamps.
+    """
+    type: Literal["manual"] = Field(
+        "manual",
+        description="Environment condition identifier. 'manual' requires direct input of atmospheric parameters."
+    )
+    seeing_fwhm_arcsec: PositiveFloat = Field(
+        1.5,
+        description="Atmospheric seeing Full Width at Half Maximum (FWHM) in arcseconds. Crucial for resolving point source PSF."
+    )
+    airmass: float = Field(
+        1.0,
+        ge=1.0,
+        description="Airmass of the observation (1.0 = Zenith). Determines the path length of light through the atmosphere."
+    )
+    extinction_coeff: Optional[float] = Field(
+        None,
+        description="Atmospheric extinction coefficient (mag/airmass). If None, the engine will fallback to the filter's default extinction."
+    )
+    sky_brightness_mag_arcsec2: float = Field(
+        ...,
+        description="Sky background brightness in magnitude per square arcsecond (mag/arcsec^2). The primary source of background noise."
+    )
+
+EnvironmentCondition = ManualEnvironment
+
+class SingleInput(BaseModel):
+    type: Literal["single"] = "single"
+    value: PositiveFloat
+
+class ArrayInput(BaseModel):
+    type: Literal["array"] = "array"
+    values: list[PositiveFloat]
+
+InputValue = Annotated[
+    Union[SingleInput, ArrayInput], 
+    Field(discriminator="type")
+]
+
+class SolveForSNR(BaseModel):
+    """
+    Strategy: Provide exposure time to calculate SNR.
+    """
+    type: Literal["solve_snr"] = "solve_snr"
+    exposure_time: InputValue
+
+class SolveForTime(BaseModel):
+    """
+    Strategy: Provide target SNR to calculate required exposure time.
+    """
+    type: Literal["solve_time"] = "solve_time"
+    target_snr: InputValue
+
+CalculationOptions = Annotated[
+    Union[SolveForSNR, SolveForTime], 
+    Field(discriminator="type")
+]
+
+class ObservationRequest(BaseModel):
+    """
+    The root contract for a CASTOR calculation request.
+    Strictly aggregates the four domain pillars: Instrument, Target, Environment, and Options.
+    """
+    instrument: InstrumentProfile = Field(
+        ...,
+        description="Static hardware configuration of the observatory (telescope, camera, filter)."
+    )
     
-    # Information
-    warnings: list[str] = Field(default_factory=list)
+    target: TargetProfile = Field(
+        ...,
+        description="Intrinsic physical properties of the celestial source (polymorphic: point or extended)."
+    )
+    
+    environment: EnvironmentCondition = Field(
+        ...,
+        description="Atmospheric and situational context (MVP: manual input of seeing, airmass, etc.)."
+    )
+    
+    options: CalculationOptions = Field(
+        ...,
+        description="Software control interface defining the calculation strategy (polymorphic: solve_snr or solve_time)."
+    )
+
+class BaseMetrics(BaseModel):
+    """
+    Secondary diagnostics and physical constants calculated during the run.
+    Contains both scalar constants for the run and array metrics that map 1:1 with the input length.
+    """
+    source_rate_e_sec: float = Field(..., description="Source signal rate (e-/sec).")
+    sky_rate_e_sec_pix: float = Field(..., description="Sky background rate per pixel (e-/sec/pix).")
+    pixel_scale: float = Field(..., description="Spatial resolution in arcseconds per pixel.")
+    readout_time_sec: float = Field(..., description="Fixed mechanical/electronic time to read the sensor.")
+
+    total_noise_e: list[float] = Field(..., description="Total noise in electrons for each calculated point.")
+    is_saturated: list[bool] = Field(..., description="True if the cumulative signal exceeds Full Well Capacity.")
+    total_observation_time_sec: list[float] = Field(..., description="Total elapsed time (Exposure + Readout Overhead) per point.")
+    
+    warnings: list[str] = Field(default_factory=list, description="Array of domain-specific warnings (e.g., 'Target too close to horizon').")
+
+
+class SNRResponse(BaseMetrics):
+    """
+    Output contract when the strategy was to solve for SNR.
+    """
+    type: Literal["snr_result"] = Field("snr_result", description="Response type identifier.")
+    
+    calculated_snr: list[float] = Field(
+        ..., 
+        description="The resolved Signal-to-Noise Ratio(s)."
+    )
+    input_exposure_time: list[float] = Field(
+        ..., 
+        description="The original exposure time(s) passed to the engine, normalized to a 1D array."
+    )
+
+
+class TimeResponse(BaseMetrics):
+    """
+    Output contract when the strategy was to solve for Exposure Time.
+    """
+    type: Literal["time_result"] = Field("time_result", description="Response type identifier.")
+    
+    calculated_exposure_time: list[float] = Field(
+        ..., 
+        description="The resolved required exposure time(s) in seconds."
+    )
+    input_target_snr: list[float] = Field(
+        ..., 
+        description="The original target SNR(s) passed to the engine, normalized to a 1D array."
+    )
+
+
+# --- The Flat Polymorphic Response ---
+CastorResponse = Annotated[
+    Union[SNRResponse, TimeResponse], 
+    Field(discriminator="type")
+]
