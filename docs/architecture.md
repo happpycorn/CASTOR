@@ -251,8 +251,8 @@ To ensure maintainability and preserve the purity of the underlying physics calc
 This modularity fully decouples the physical realities of the observatory from the software-level execution logic, allowing the core physics solver to maintain stateless, high-performance execution.
 
 * **Instrument Profile (`instrument`)**: Defines the static hardware components responsible for capturing light. To maximize reusability, it is further subdivided into the telescope's optical system, the camera's sensor electronics, and the passband filter. Notably, the filter schema is designated as `optic_filter` to prevent shadowing Python's built-in `filter` function.
-* **Target Profile (`target`)**: Isolates the intrinsic physical properties of the celestial source, such as its magnitude and morphology, completely independent of the observer's location or equipment.
-* **Environment Condition (`environment`)**: Captures the dynamic atmospheric and situational context (e.g., seeing, coordinates, and timestamps) that dictates how the target's light is altered before reaching the telescope.
+* **Target Profile (`target`)**: Defines the intrinsic physical properties of the celestial source. To prevent users from accidentally submitting conflicting data (such as providing both `"apparent magnitude"` for a star and `"surface brightness"` for a galaxy simultaneously), we avoid using a single, monolithic structure. Instead, the target relies on a specific type tag (e.g., `"point"` or `"extended"`) to seamlessly switch to the appropriate data format. This ensures that invalid data combinations are immediately blocked at the very edge of the system. Once the data reaches the core physics engine, the code can use pattern matching directly on the target type—routing point sources to PSF-based flux equations and extended sources to surface brightness formulas. This approach completely eliminates the need for complex and hard-to-maintain nested `if-else` branching within the core engine.
+* **Environment Condition (`environment`)**: Defines the atmospheric and situational context that alters the target's light before it reaches the telescope. By implementing this as a discriminated union from the start, the architecture leaves a clean path to introduce other environment type in the future without breaking the existing API contract or core engine logic.
 * **Calculation Options (`options`)**: Acts as the software control interface. It separates human-driven observation strategies and runtime overrides—such as toggling between target SNR and exposure time calculations—from the objective physical parameters.
 
 ```mermaid
@@ -262,7 +262,7 @@ graph TD
 
     %% Domain Pillars (Pydantic Fields & Types)
     P1[instrument<br/>: InstrumentProfile]
-    P2[target<br/>: TargetProfile]
+    P2[target<br/>: TargetProfile<br/><i>Discriminated Union</i>]
     P3[environment<br/>: EnvironmentCondition]
     P4[options<br/>: CalculationOptions]
 
@@ -273,12 +273,22 @@ graph TD
     P1 --> P1_2[camera: <br/>CameraSchema]
     P1 --> P1_3[optic_filter: <br/>FilterSchema]
 
+    %% Target Profile Sub-schemas (Polymorphism)
+    P2 --> P2_1[PointTarget]
+    P2 --> P2_2[ExtendedTarget]
+    P2 --> P2_3[Other...]
+
     %% Styling
     style Root fill:transparent,stroke:#a871ff,stroke-width:3px
     style P1 fill:transparent,stroke:#2b8cff,stroke-width:2px
     style P2 fill:transparent,stroke:#2b8cff,stroke-width:2px
     style P3 fill:transparent,stroke:#2b8cff,stroke-width:2px
     style P4 fill:transparent,stroke:#2b8cff,stroke-width:2px
+    
+    %% Highlight Polymorphic branches
+    style P2_1 fill:transparent,stroke:#ff8c2b,stroke-width:2px,stroke-dasharray: 5 5
+    style P2_2 fill:transparent,stroke:#ff8c2b,stroke-width:2px,stroke-dasharray: 5 5
+    style P2_3 fill:transparent,stroke:#ff8c2b,stroke-width:2px,stroke-dasharray: 5 5
 ```
 
 ### 5.2 Response Schema
@@ -294,3 +304,5 @@ The response strictly avoids UI-specific formatting, presentation layers, or plo
 ## 6. Future Extensibility
 
 Vectorized Batch Optimization
+
+TargetProfile to ESO ETC's Form
