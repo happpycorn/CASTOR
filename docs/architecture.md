@@ -121,7 +121,7 @@ src/castor/
 
 ### Module Responsibilities
 
-* **`calculator.py`:** The system's traffic controller. It receives validated requests, gathers missing parameters from domain modules (`catalogs`, `ephemeris`, `optics`), feeds the aggregated NumPy arrays into `physics.py`, and packages the final response.
+* **`calculator.py`:** The system's traffic controller. It receives validated requests, gathers missing parameters from domain modules (`ephemeris`, `optics`), feeds the aggregated NumPy arrays into `physics.py`, and packages the final response.
 
 * **`schema.py`:** Defines Pydantic models to block invalid data at the door. It enforces physical boundaries (e.g., transmission rates strictly between $0.0$ and $1.0$) and logical mutual exclusivity (e.g., requiring either exposure time or target SNR, but not both).
 
