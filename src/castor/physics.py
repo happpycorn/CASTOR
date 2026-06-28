@@ -240,7 +240,7 @@ def calc_sky_count_rate(
 # 4. Observation Metrics (觀測指標評估)
 # ==========================================
 
-def calc_total_signal(source_count_rate: float, exposure_time: float) -> float:
+def calc_total_signal(source_count_rate: float, exposure_time: np.ndarray) -> np.ndarray:
     """
     Calculate the total accumulated electrons from the source over a given exposure time.
 
@@ -278,7 +278,7 @@ def calc_readout_time(
     # Readout time = total pixels / (sampling rate per amplifier * number of amplifiers)[cite: 4, 6]
     return total_pixels / sampling_rate_hz / n_amplifiers
 
-def calc_total_observation_time(exposure_time: float, readout_time: float) -> float:
+def calc_total_observation_time(exposure_time: np.ndarray, readout_time: float) -> np.ndarray:
     """
     Calculate the total telescope time required, including exposure and overhead.
 
@@ -297,8 +297,8 @@ def calc_total_noise_and_snr(
     dark_count_rate: float,
     readout_noise: float,
     n_pix_aperture: float,
-    exposure_time: float
-) -> tuple[float, float]:
+    exposure_time: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Calculate the total noise components and the final signal-to-noise ratio (SNR).
 
@@ -334,9 +334,9 @@ def calc_exposure_time(
     sky_count_rate: float,
     dark_count_rate: float,
     readout_noise: float,
-    target_snr: float,
+    target_snr: np.ndarray,
     n_pix_aperture: float
-) -> float:
+) -> np.ndarray:
     """
     Reverse-calculate the required exposure time to achieve a target SNR 
     by solving a quadratic equation.

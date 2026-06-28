@@ -74,7 +74,7 @@ def test_snr_to_exposure_time_consistency():
     
     # Step 1: Forward calculation (Get SNR)[cite: 5, 7]
     _, snr = calc_total_noise_and_snr(
-        src_rate, sky_rate, dark_rate, rd_noise, npix, target_time
+        src_rate, sky_rate, dark_rate, rd_noise, npix, np.array(target_time)
     )
     
     # Step 2: Reverse calculation (Solve for Time)[cite: 4, 6]
