@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, PositiveFloat, PositiveInt, model_validator
 from typing import Literal, Optional, Union, Annotated
+from datetime import datetime
 
 class TelescopeSchema(BaseModel):
     """
@@ -182,6 +183,14 @@ class BaseTarget(BaseModel):
         ge=0.0, 
         description="Cosmological redshift (z) of the target. Default is 0.0 (local)."
     )
+    ra: tuple[float, float, float] = Field(
+        None, 
+        description="Right Ascension in hours, minutes, seconds (RA_h, RA_m, RA_s)."
+    )
+    dec: tuple[float, float, float] = Field(
+        None,
+        description="Declination in degrees, arcminutes, arcseconds (Dec_d, Dec_m, Dec_s)."
+    )
 
     @model_validator(mode='after')
     def validate_sed_configuration(self):
@@ -251,27 +260,14 @@ class ManualEnvironment(BaseModel):
         ...,
         description="Base dark sky background brightness in magnitude per square arcsecond (mag/arcsec^2) assuming no moonlight."
     )
-    
-    # ==========================================
-    # Moonlight Model Parameters (Optional)
-    # ==========================================
-    moon_phase: Optional[float] = Field(
+
+    observing_time: datetime = Field(
         None,
-        ge=0.0,
-        le=1.0,
-        description="Moon illuminated fraction (0.0 for New Moon, 1.0 for Full Moon). If None, moonlight is ignored."
+        description="UTC timestamp of the observation. Required for dynamic calculations like moon phase and position."
     )
-    moon_target_separation_deg: Optional[float] = Field(
+    observatory_position: tuple[float, float, float] = Field(
         None,
-        ge=0.0,
-        le=180.0,
-        description="Angle between the target and the moon in degrees."
-    )
-    moon_zenith_angle_deg: Optional[float] = Field(
-        None,
-        ge=0.0,
-        le=90.0,
-        description="Zenith angle of the moon in degrees (0 = directly overhead, 90 = horizon)."
+        description="Observatory geodetic coordinates as (latitude_deg, longitude_deg, elevation_m). Required for accurate celestial calculations."
     )
 
 EnvironmentCondition = ManualEnvironment

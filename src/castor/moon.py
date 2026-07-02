@@ -1,4 +1,4 @@
-from skyfield.api import load, wgs84, Star, Geoid, Timescale
+from skyfield.api import load, wgs84, Star, Timescale
 from skyfield.almanac import fraction_illuminated
 import numpy as np
 
@@ -8,11 +8,32 @@ def calc_moonlight_background(
     request: ObservationRequest, 
 ) -> None:
     
-    if request.target is None or request.environment is None:
+    if request.target.ra is None or request.target.dec is None:
+        return  # Cannot compute moonlight background without target coordinates
     
-    target_star: Star, obs_position: Geoid, t: Timescale
-
+    if request.environment.observatory_position is None:
+        return  # Cannot compute moonlight background without observatory 
+    
+    if request.environment.observing_time is None:
+        return  # Cannot compute moonlight background without observing time
+    
     eph = load('de421.bsp')
+    
+
+    target_star: Star = Star(
+        ra_hours=request.target.ra,
+        dec_degrees=request.target.dec
+    )
+    
+    obs_position = eph['earth'] + wgs84.latlon(
+        request.environment.observatory_position[0], 
+        request.environment.observatory_position[1], 
+        elevation_m=request.environment.observatory_position[2]
+    )
+
+    ts = load.timescale()
+    t = ts.from_datetime(request.environment.observing_time)
+
     moon_observation = obs_position.at(t).observe(eph['moon']).apparent()
     alt, az, distance = moon_observation.altaz()
 
@@ -73,3 +94,55 @@ def calc_moonlight_environment(
     dynamic_sky_mag = -2.5 * np.log10(total_sky_flux)
     
     return dynamic_sky_mag
+
+if __name__ == "__main__":
+    from skyfield.api import load
+    from castor.schema import ObservationRequest, PointTarget, ManualEnvironment, TelescopeSchema, CameraSchema, FilterSchema
+    from datetime import datetime, timezone
+
+    print("準備望遠鏡與環境參數...")
+
+    # 1. 建立一個包含經緯度的環境 (鹿林天文台大約位置)
+    # 假設你們的 schema 有擴充這些欄位，這裡用一個模擬的環境
+    environment = ManualEnvironment(
+        sky_brightness_mag_arcsec2=21.0, # 原本無月的黑夜是 21 等
+        airmass=1.2,
+        seeing_fwhm_arcsec=1.5
+    )
+    # 動態加上 Skyfield 需要的參數 (這部分要看你們的 schema 怎麼設計，這裡先直接賦值測試)
+    environment.observing_time = datetime(2026, 7, 2, 14, 0, tzinfo=timezone.utc) # 隨便挑一個有月亮的時間
+    environment.observatory_position = (23.4686, 120.8736, 2862) # 鹿林天文台 (緯度, 經度, 海拔)
+
+    # 2. 設定觀測目標 (假設目標在天赤道附近)
+    target = PointTarget(
+        target_mag=15.0,
+        sed_type="flat"
+    )
+    target.ra = 12.0  # 赤經 (小時)
+    target.dec = 0.0  # 赤緯 (度)
+
+    # 3. 隨便塞個硬體讓 Request 不會報錯 (沿用你上次查到的 LOT 數據)
+    dummy_telescope = TelescopeSchema(diameter_m=1.0, focal_length_m=8.0)
+    dummy_camera = CameraSchema(pixel_size_micron=15.0, resolution_x=2048, resolution_y=2048, read_noise_e=5.0, quantum_efficiency=0.85)
+    dummy_filter = FilterSchema(name="V", central_wavelength_nm=550.0, fwhm_nm=89.0, zero_mag_flux=3.63e-11)
+
+    # 4. 打包 Request
+    instrument = {
+        "telescope": dummy_telescope,
+        "camera": dummy_camera,
+        "optic_filter": dummy_filter
+    }
+    request = ObservationRequest(
+        instrument=instrument,
+        target=target,
+        environment=environment,
+        options={"type": "solve_snr", "exposure_time": {"type": "single", "value": 60.0}}
+    )
+
+    print(f"🌖 月光摧殘前，鹿林夜空背景亮度：{request.environment.sky_brightness_mag_arcsec2} 等")
+
+    # 5. 啟動月光外掛！
+    print("呼叫 Skyfield 計算月光散射模型...")
+    calc_moonlight_background(request)
+
+    print(f"✨ 月光摧殘後，實際動態背景亮度：{request.environment.sky_brightness_mag_arcsec2:.2f} 等")
