@@ -249,7 +249,29 @@ class ManualEnvironment(BaseModel):
     )
     sky_brightness_mag_arcsec2: float = Field(
         ...,
-        description="Sky background brightness in magnitude per square arcsecond (mag/arcsec^2). The primary source of background noise."
+        description="Base dark sky background brightness in magnitude per square arcsecond (mag/arcsec^2) assuming no moonlight."
+    )
+    
+    # ==========================================
+    # Moonlight Model Parameters (Optional)
+    # ==========================================
+    moon_phase: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Moon illuminated fraction (0.0 for New Moon, 1.0 for Full Moon). If None, moonlight is ignored."
+    )
+    moon_target_separation_deg: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=180.0,
+        description="Angle between the target and the moon in degrees."
+    )
+    moon_zenith_angle_deg: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=90.0,
+        description="Zenith angle of the moon in degrees (0 = directly overhead, 90 = horizon)."
     )
 
 EnvironmentCondition = ManualEnvironment
