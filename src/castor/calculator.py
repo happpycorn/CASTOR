@@ -11,22 +11,13 @@ from castor.schema import (
     SolveForTime, SolveForSNR, TimeResponse,
 )
 
+from castor import moon
+
 class CastorCalculator:
     def calculate(self, request: ObservationRequest) -> CastorResponse:
 
-        # Context Enrichment
-        if request.environment.moon_phase is not None and request.environment.moon_target_separation_deg is not None:
-            moonlight_background = physics.calc_moonlight_background(
-                base_sky_mag=request.environment.sky_brightness_mag_arcsec2,
-                moon_phase=request.environment.moon_phase,
-                separation_angle_deg=request.environment.moon_target_separation_deg,
-                moon_zenith_angle_deg=request.environment.moon_zenith_angle_deg
-            )
-        
-
-        print(moonlight_background)
-        print(request.environment.sky_brightness_mag_arcsec2)
-        request.environment.sky_brightness_mag_arcsec2 = moonlight_background
+        # Context Enrichment        
+        moon.calc_moonlight_background(request)
 
         # Core Computation
         hw = self._precompute_hardware_constants(request.instrument)

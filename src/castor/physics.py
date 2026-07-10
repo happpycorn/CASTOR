@@ -15,8 +15,7 @@ __all__ = [
     "calc_total_noise_and_snr",
     "calc_total_signal",
     "calc_readout_time",
-    "calc_total_observation_time"
-    "calc_moonlight_background"
+    "calc_total_observation_time",
 ]
 
 PLANCK_CONSTANT, SPEED_OF_LIGHT = constants.h, constants.c
