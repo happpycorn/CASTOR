@@ -16,6 +16,7 @@ __all__ = [
     "calc_total_signal",
     "calc_readout_time",
     "calc_total_observation_time"
+    "calc_moonlight_background"
 ]
 
 PLANCK_CONSTANT, SPEED_OF_LIGHT = constants.h, constants.c
@@ -361,3 +362,4 @@ def calc_exposure_time(
     exposure_time = (b + np.sqrt(b**2 - 4 * a * c)) / (2 * a)
     
     return exposure_time
+

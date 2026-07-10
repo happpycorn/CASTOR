@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, PositiveFloat, PositiveInt, model_validator
 from typing import Literal, Optional, Union, Annotated
+from datetime import datetime
 
 class TelescopeSchema(BaseModel):
     """
@@ -182,6 +183,14 @@ class BaseTarget(BaseModel):
         ge=0.0, 
         description="Cosmological redshift (z) of the target. Default is 0.0 (local)."
     )
+    ra: tuple[float, float, float] = Field(
+        None, 
+        description="Right Ascension in hours, minutes, seconds (RA_h, RA_m, RA_s)."
+    )
+    dec: tuple[float, float, float] = Field(
+        None,
+        description="Declination in degrees, arcminutes, arcseconds (Dec_d, Dec_m, Dec_s)."
+    )
 
     @model_validator(mode='after')
     def validate_sed_configuration(self):
@@ -249,7 +258,16 @@ class ManualEnvironment(BaseModel):
     )
     sky_brightness_mag_arcsec2: float = Field(
         ...,
-        description="Sky background brightness in magnitude per square arcsecond (mag/arcsec^2). The primary source of background noise."
+        description="Base dark sky background brightness in magnitude per square arcsecond (mag/arcsec^2) assuming no moonlight."
+    )
+
+    observing_time: datetime = Field(
+        None,
+        description="UTC timestamp of the observation. Required for dynamic calculations like moon phase and position."
+    )
+    observatory_position: tuple[float, float, float] = Field(
+        None,
+        description="Observatory geodetic coordinates as (latitude_deg, longitude_deg, elevation_m). Required for accurate celestial calculations."
     )
 
 EnvironmentCondition = ManualEnvironment
