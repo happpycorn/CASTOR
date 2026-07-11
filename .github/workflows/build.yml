@@ -30,7 +30,7 @@ jobs:
     - name: 🐍 設定 Python 環境
       uses: actions/setup-python@v5
       with:
-        python-version: "3.11" # 若你的專案是用其他版本，請在此修改
+        python-version: "3.12" # 若你的專案是用其他版本，請在此修改
 
     - name: 📦 安裝專案依賴
       run: uv sync
@@ -54,11 +54,11 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: CASTOR-ETC-Windows
-        path: dist/CASTOR-ETC-Windows.exe
+        path: dist/CASTOR-ETC.exe
 
     - name: 📤 上傳 macOS 產物
       if: matrix.os == 'macos-latest'
       uses: actions/upload-artifact@v4
       with:
         name: CASTOR-ETC-macOS
-        path: dist/CASTOR-ETC-macOS.app/
+        path: dist/CASTOR-ETC.app/
