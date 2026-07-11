@@ -40,28 +40,11 @@ jobs:
 
     - name: 🏗️ 打包執行檔 (Windows)
       if: matrix.os == 'windows-latest'
-      # ⚠️ Windows 注意：--add-data 必須使用分號 (;)
-      # --noconsole 會隱藏背後的黑色終端機視窗
-      run: >
-        uv run pyinstaller --noconfirm --noconsole --onefile
-        --paths src
-        --exclude-module pytest
-        --exclude-module matplotlib
-        --add-data "src/castor_gui/frontend;castor_gui/frontend"
-        --name CASTOR-ETC-Windows
-        src/castor_gui/app.py
+      run: uv run pyinstaller --clean --noconfirm build.spec
 
     - name: 🏗️ 打包執行檔 (macOS)
       if: matrix.os == 'macos-latest'
-      # ⚠️ macOS 注意：--add-data 必須使用冒號 (:)
-      run: >
-        uv run pyinstaller --noconfirm --noconsole --onefile
-        --paths src
-        --exclude-module pytest
-        --exclude-module matplotlib
-        --add-data "src/castor_gui/frontend:castor_gui/frontend"
-        --name CASTOR-ETC-macOS
-        src/castor_gui/app.py
+      run: uv run pyinstaller --clean --noconfirm build.spec
 
     - name: 📤 上傳 Windows 產物
       if: matrix.os == 'windows-latest'
