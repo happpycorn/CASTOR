@@ -53,3 +53,10 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
+
+app = BUNDLE(
+    exe,
+    name='CASTOR-ETC.app',
+    icon=None,
+    bundle_identifier=None,
+)
