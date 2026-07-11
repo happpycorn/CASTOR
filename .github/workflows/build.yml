@@ -38,6 +38,9 @@ jobs:
     - name: 🧪 執行自動化測試 (Pytest)
       run: uv run pytest
 
+    - name: 🧹 清除開發套件 (過河拆橋)
+      run: uv sync --no-dev
+
     - name: 🏗️ 打包執行檔 (Windows)
       if: matrix.os == 'windows-latest'
       run: uv run pyinstaller --clean --noconfirm build.spec
