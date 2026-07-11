@@ -17,6 +17,9 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pyinstaller",
     "pytest>=9.0.3",
+    "pyinstaller>=6.0.0",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
