@@ -140,7 +140,7 @@ class FilterSchema(BaseModel):
     )
     zero_mag_flux: float = Field(
         ..., 
-        description="The flux of a 0-magnitude star for this band (W m^-2 m^-1)."
+        description="The flux of a 0-magnitude star for this band (W m^-2 nm^-1). The engine will automatically convert this to SI units (W m^-2 m^-1)."
     )
     default_extinction: float = Field(
         0.15, 
@@ -183,11 +183,11 @@ class BaseTarget(BaseModel):
         ge=0.0, 
         description="Cosmological redshift (z) of the target. Default is 0.0 (local)."
     )
-    ra: tuple[float, float, float] = Field(
+    ra: tuple[float, float, float] | None = Field(
         None, 
         description="Right Ascension in hours, minutes, seconds (RA_h, RA_m, RA_s)."
     )
-    dec: tuple[float, float, float] = Field(
+    dec: tuple[float, float, float] | None = Field(
         None,
         description="Declination in degrees, arcminutes, arcseconds (Dec_d, Dec_m, Dec_s)."
     )
@@ -261,11 +261,11 @@ class ManualEnvironment(BaseModel):
         description="Base dark sky background brightness in magnitude per square arcsecond (mag/arcsec^2) assuming no moonlight."
     )
 
-    observing_time: datetime = Field(
+    observing_time: datetime | None = Field(
         None,
         description="UTC timestamp of the observation. Required for dynamic calculations like moon phase and position."
     )
-    observatory_position: tuple[float, float, float] = Field(
+    observatory_position: tuple[float, float, float] | None = Field(
         None,
         description="Observatory geodetic coordinates as (latitude_deg, longitude_deg, elevation_m). Required for accurate celestial calculations."
     )

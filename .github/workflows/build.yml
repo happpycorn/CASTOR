@@ -1,0 +1,71 @@
+name: Build CASTOR-ETC
+
+on:
+  push:
+    branches: [ "main" ]  # 當程式碼推送到 main 分支時觸發
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:      # 允許你在 GitHub 網頁上手動點擊按鈕觸發打包
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    
+    # 策略矩陣：同時開啟 Windows 和 macOS 的虛擬主機
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+    - name: 📥 取得程式碼 (Checkout)
+      uses: actions/checkout@v4
+
+    - name: ⚡ 安裝並設定 uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+
+    - name: 🐍 設定 Python 環境
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12" # 若你的專案是用其他版本，請在此修改
+
+    - name: 📦 安裝專案依賴
+      run: uv sync
+
+    - name: 🧪 執行自動化測試 (Pytest)
+      run: uv run pytest
+
+    - name: 🧹 清除開發套件 (過河拆橋)
+      run: uv sync --no-dev
+
+    - name: 🏗️ 打包執行檔 (Windows)
+      if: matrix.os == 'windows-latest'
+      run: uv run pyinstaller --clean --noconfirm build.spec
+
+    - name: 🏗️ 打包執行檔 (macOS)
+      if: matrix.os == 'macos-latest'
+      run: uv run pyinstaller --clean --noconfirm build.spec
+
+    - name: 📤 上傳 Windows 產物
+      if: matrix.os == 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: CASTOR-ETC-Windows
+        path: dist/CASTOR-ETC.exe
+
+    - name: 🗜️ 壓縮 Mac 應用程式
+      if: matrix.os == 'macos-latest'
+      run: |
+        cd dist
+        zip -r CASTOR-ETC-macOS.zip CASTOR-ETC.app
+
+    - name: 📤 上傳 macOS 產物
+      if: matrix.os == 'macos-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: CASTOR-ETC-macOS
+        # 👇 [修改] 這裡改成直接上傳我們剛剛包好的 zip 檔
+        path: dist/CASTOR-ETC-macOS.zip

@@ -55,7 +55,7 @@ def v_band_filter():
         central_wavelength_nm=550.0,
         fwhm_nm=89.0,
         peak_transmission=0.9,
-        zero_mag_flux=3.63e-2,
+        zero_mag_flux=3.63e-11,
         default_extinction=0.15
     )
 

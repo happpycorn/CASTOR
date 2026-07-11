@@ -104,7 +104,7 @@ if __name__ == "__main__":
 
     # 1. 建立一個包含經緯度的環境 (鹿林天文台大約位置)
     # 假設你們的 schema 有擴充這些欄位，這裡用一個模擬的環境
-    environment = ManualEnvironment(
+    environment : ManualEnvironment = ManualEnvironment(
         sky_brightness_mag_arcsec2=21.0, # 原本無月的黑夜是 21 等
         airmass=1.2,
         seeing_fwhm_arcsec=1.5
@@ -114,12 +114,18 @@ if __name__ == "__main__":
     environment.observatory_position = (23.4686, 120.8736, 2862) # 鹿林天文台 (緯度, 經度, 海拔)
 
     # 2. 設定觀測目標 (假設目標在天赤道附近)
-    target = PointTarget(
+    target: PointTarget = PointTarget(
         target_mag=15.0,
-        sed_type="flat"
+        sed_type="flat",
+        # ra 和 dec 需要改成包含三個 float 的 Tuple (請根據實際的時分秒/度分秒數值做調整)
+        ra=(12.0, 0.0, 0.0), 
+        dec=(0.0, 0.0, 0.0),
+        
+        # 補上缺少的必填參數 (以下數值請依你的實際觀測需求調整)
+        temperature_k=None,  # 因為型別是 PositiveFloat | None
+        redshift=0.0,        # 假設紅移為 0
+        type="point"         # 型別限制為 Literal['point']，只能填 'point'
     )
-    target.ra = 12.0  # 赤經 (小時)
-    target.dec = 0.0  # 赤緯 (度)
 
     # 3. 隨便塞個硬體讓 Request 不會報錯 (沿用你上次查到的 LOT 數據)
     dummy_telescope = TelescopeSchema(diameter_m=1.0, focal_length_m=8.0)
