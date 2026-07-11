@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
+import sys
 from unittest.mock import MagicMock
 sys.modules['pytest'] = MagicMock()
 
