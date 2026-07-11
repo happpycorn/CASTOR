@@ -24,9 +24,10 @@ class CastorCalculator:
         
         pixel_scale = hw["pixel_scale"]
         filter_width_m = request.instrument.optic_filter.fwhm_nm * 1e-9
+        zero_mag_flux_si = request.instrument.optic_filter.zero_mag_flux * 1e9
         
         sky_rate = physics.calc_sky_count_rate(
-            request.instrument.optic_filter.zero_mag_flux,
+            zero_mag_flux_si,
             request.environment.sky_brightness_mag_arcsec2,
             filter_width_m, hw["eff_area"], pixel_scale,
             hw["photon_energy"], hw["throughput"]
@@ -91,7 +92,7 @@ class CastorCalculator:
         throughput: float,
         pixel_scale: float,
     ) -> tuple[float, float]:
-        zero_mag_flux = instrument.optic_filter.zero_mag_flux
+        zero_mag_flux = instrument.optic_filter.zero_mag_flux * 1e9
         airmass = environment.airmass
         filter_width_m = instrument.optic_filter.fwhm_nm * 1e-9
 

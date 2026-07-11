@@ -140,7 +140,7 @@ class FilterSchema(BaseModel):
     )
     zero_mag_flux: float = Field(
         ..., 
-        description="The flux of a 0-magnitude star for this band (W m^-2 m^-1)."
+        description="The flux of a 0-magnitude star for this band (W m^-2 nm^-1). The engine will automatically convert this to SI units (W m^-2 m^-1)."
     )
     default_extinction: float = Field(
         0.15, 
