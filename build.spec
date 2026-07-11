@@ -1,5 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
+from unittest.mock import MagicMock
+sys.modules['pytest'] = MagicMock()
 
 # 把 src 加入模組搜尋路徑
 pathex = [os.path.abspath('src')]
