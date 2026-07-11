@@ -44,6 +44,7 @@ jobs:
       # --noconsole 會隱藏背後的黑色終端機視窗
       run: >
         uv run pyinstaller --noconfirm --noconsole --onefile
+        --paths src
         --add-data "src/castor_gui/frontend;castor_gui/frontend"
         --name CASTOR-ETC-Windows
         src/castor_gui/app.py
@@ -53,6 +54,7 @@ jobs:
       # ⚠️ macOS 注意：--add-data 必須使用冒號 (:)
       run: >
         uv run pyinstaller --noconfirm --noconsole --onefile
+        --paths src
         --add-data "src/castor_gui/frontend:castor_gui/frontend"
         --name CASTOR-ETC-macOS
         src/castor_gui/app.py
@@ -69,4 +71,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: CASTOR-ETC-macOS
-        path: dist/CASTOR-ETC-macOS
+        path: dist/CASTOR-ETC-macOS.app/
