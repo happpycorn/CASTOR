@@ -1,0 +1,72 @@
+name: Build CASTOR-ETC
+
+on:
+  push:
+    branches: [ "main" ]  # 當程式碼推送到 main 分支時觸發
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:      # 允許你在 GitHub 網頁上手動點擊按鈕觸發打包
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    
+    # 策略矩陣：同時開啟 Windows 和 macOS 的虛擬主機
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+    - name: 📥 取得程式碼 (Checkout)
+      uses: actions/checkout@v4
+
+    - name: ⚡ 安裝並設定 uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+
+    - name: 🐍 設定 Python 環境
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11" # 若你的專案是用其他版本，請在此修改
+
+    - name: 📦 安裝專案依賴
+      run: uv sync
+
+    - name: 🧪 執行自動化測試 (Pytest)
+      run: uv run pytest
+
+    - name: 🏗️ 打包執行檔 (Windows)
+      if: matrix.os == 'windows-latest'
+      # ⚠️ Windows 注意：--add-data 必須使用分號 (;)
+      # --noconsole 會隱藏背後的黑色終端機視窗
+      run: >
+        uv run pyinstaller --noconfirm --noconsole --onefile
+        --add-data "src/castor_gui/frontend;castor_gui/frontend"
+        --name CASTOR-ETC-Windows
+        src/castor_gui/app.py
+
+    - name: 🏗️ 打包執行檔 (macOS)
+      if: matrix.os == 'macos-latest'
+      # ⚠️ macOS 注意：--add-data 必須使用冒號 (:)
+      run: >
+        uv run pyinstaller --noconfirm --noconsole --onefile
+        --add-data "src/castor_gui/frontend:castor_gui/frontend"
+        --name CASTOR-ETC-macOS
+        src/castor_gui/app.py
+
+    - name: 📤 上傳 Windows 產物
+      if: matrix.os == 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: CASTOR-ETC-Windows
+        path: dist/CASTOR-ETC-Windows.exe
+
+    - name: 📤 上傳 macOS 產物
+      if: matrix.os == 'macos-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: CASTOR-ETC-macOS
+        path: dist/CASTOR-ETC-macOS
