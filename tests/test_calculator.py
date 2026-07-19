@@ -27,7 +27,7 @@ def lot_telescope():
         m2_reflectance=0.9,
         glass_transmission=0.95,
         central_obstruction_linear_ratio=0.3,
-        additional_throughput=0
+        additional_throughput=1
     )
 
 @pytest.fixture
@@ -76,7 +76,7 @@ def base_environment():
         seeing_fwhm_arcsec=1.5,
         airmass=1.0,
         extinction_coeff=None,
-        sky_brightness_mag_arcsec2=21.0
+        sky_brightness_mag_arcsec2=21.0,
     )
 
 @pytest.fixture
