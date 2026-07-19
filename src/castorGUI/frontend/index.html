@@ -20,56 +20,18 @@
             <section id="section-instrument">
                 <h2>1. Instrument Profile</h2>
                 
-                <p>
-                    <label for="hw-template">Hardware Template:</label>
-                    <select id="hw-template" name="preset_hardware">
-                        <option value="LOT_Sophia">Lulin 1m (LOT) + Sophia Camera</option>
-                        <option value="SLT">SLT (0.4m) + Default Camera</option>
-                        <option value="CUSTOM">Custom Parameters</option>
-                    </select>
-                </p>
-
-                <p>
-                    <label for="filter-template">Filter Band:</label>
-                    <select id="filter-template" name="preset_filter">
-                        <option value="V">V Band (550nm)</option>
-                        <option value="R">R Band (640nm)</option>
-                        <option value="I">I Band (790nm)</option>
-                        <option value="CUSTOM">Custom Filter</option>
-                    </select>
-                </p>
-
-                <details>
-                    <summary>⚙️ Common Hardware Adjustments (Binning, Noise, Aperture)</summary>
-                    <ul>
-                        <li>
-                            <label for="tel-diameter">Aperture / Diameter (m):</label>
-                            <input type="number" id="tel-diameter" name="telescope-diameter_m" value="1.0" step="0.1" required>
-                        </li>
-                        <li>
-                            <li>
-                                <label for="cam-binning-x">Binning X / Y:</label>
-                                <div class="inline-group">
-                                    <input type="number" id="cam-binning-x" name="camera-binning_x" value="1" min="1" required> <span>x</span> 
-                                    <input type="number" id="cam-binning-y" name="camera-binning_y" value="1" min="1" required> <span>y</span> 
-                                </div>
-                            </li>
-                        </li>
-                        <li>
-                            <label for="cam-read-noise">Read Noise (e-/pix):</label>
-                            <input type="number" id="cam-read-noise" name="camera-read_noise_e" value="5.0" step="0.1" required>
-                        </li>
-                        <li>
-                            <label for="cam-dark-current">Dark Current (e-/sec/pix):</label>
-                            <input type="number" id="cam-dark-current" name="camera-dark_current_e_per_sec" value="0.01" step="0.001" required>
-                        </li>
-                    </ul>
-
+                <!-- ================= 望遠鏡區塊 ================= -->
+                <div class="instrument-group">
+                    <p>
+                        <label for="telescope-template">Telescope:</label>
+                        <select id="telescope-template" name="preset_telescope">
+                            <option value="">Loading...</option>
+                        </select>
+                    </p>
                     <details>
-                        <summary>🔬 Deep Physics & Optical Constants</summary>
-                        
-                        <h4>[Telescope Optics]</h4>
+                        <summary>🔭 Telescope Optics & Specs</summary>
                         <ul>
+                            <li><label for="tel-diameter">Aperture / Diameter (m):</label> <input type="number" id="tel-diameter" name="telescope-diameter_m" value="1.0" step="0.1" required></li>
                             <li><label>Focal Length (m):</label> <input type="number" name="telescope-focal_length_m" value="8.0" step="0.1" required></li>
                             <li><label>M1 Reflectance:</label> <input type="number" name="telescope-m1_reflectance" value="0.92" step="0.01" max="1" min="0" required></li>
                             <li><label>M2 Reflectance:</label> <input type="number" name="telescope-m2_reflectance" value="0.92" step="0.01" max="1" min="0" required></li>
@@ -77,11 +39,33 @@
                             <li><label>Central Obstruction Ratio:</label> <input type="number" name="telescope-central_obstruction_linear_ratio" value="0.3" step="0.01" max="1" min="0" required></li>
                             <li><label>Additional Throughput:</label> <input type="number" name="telescope-additional_throughput" value="1.0" step="0.01" max="1" min="0" required></li>
                         </ul>
+                    </details>
+                </div>
 
-                        <h4>[Camera / Detector]</h4>
+                <br> <!-- 簡單的間距 -->
+
+                <!-- ================= 相機區塊 ================= -->
+                <div class="instrument-group">
+                    <p>
+                        <label for="camera-template">Camera / Detector:</label>
+                        <select id="camera-template" name="preset_camera">
+                            <option value="">Loading...</option>
+                        </select>
+                    </p>
+                    <details>
+                        <summary>📷 Camera Detector & Noise</summary>
                         <ul>
                             <li><label>Pixel Size (μm):</label> <input type="number" name="camera-pixel_size_micron" value="15.0" step="0.1" required></li>
                             <li><label>Resolution (X / Y):</label> <input type="number" name="camera-resolution_x" value="2048" required> x <input type="number" name="camera-resolution_y" value="2048" required></li>
+                            <li>
+                                <label for="cam-binning-x">Binning X / Y:</label>
+                                <div class="inline-group">
+                                    <input type="number" id="cam-binning-x" name="camera-binning_x" value="1" min="1" required> <span>x</span> 
+                                    <input type="number" id="cam-binning-y" name="camera-binning_y" value="1" min="1" required> <span>y</span> 
+                                </div>
+                            </li>
+                            <li><label for="cam-read-noise">Read Noise (e-/pix):</label> <input type="number" id="cam-read-noise" name="camera-read_noise_e" value="5.0" step="0.1" required></li>
+                            <li><label for="cam-dark-current">Dark Current (e-/sec/pix):</label> <input type="number" id="cam-dark-current" name="camera-dark_current_e_per_sec" value="0.01" step="0.001" required></li>
                             <li><label>Quantum Efficiency (QE):</label> <input type="number" name="camera-quantum_efficiency" value="0.85" step="0.01" max="1" min="0" required></li>
                             <li><label>Readout Speed (kHz):</label> <input type="number" name="camera-readout_speed_khz" value="100.0" step="1" required></li>
                             <li><label>Number of Amplifiers:</label> <input type="number" name="camera-n_amplifiers" value="2" min="1" required></li>
@@ -89,8 +73,21 @@
                             <li><label>Shutter Overhead (sec):</label> <input type="number" name="camera-shutter_overhead_sec" value="0.0" step="0.1" required></li>
                             <li><label>Full Well Capacity (e-):</label> <input type="number" name="camera-full_well_capacity_e" value="100000" step="1000"></li>
                         </ul>
+                    </details>
+                </div>
 
-                        <h4>[Filter Characteristics]</h4>
+                <br> <!-- 簡單的間距 -->
+
+                <!-- ================= 濾鏡區塊 ================= -->
+                <div class="instrument-group">
+                    <p>
+                        <label for="filter-template">Filter Band:</label>
+                        <select id="filter-template" name="preset_filter">
+                            <option value="">Loading...</option>
+                        </select>
+                    </p>
+                    <details>
+                        <summary>🌈 Filter Characteristics</summary>
                         <ul>
                             <li><label>Filter Name:</label> <input type="text" name="filter-name" value="V" required></li>
                             <li><label>Central Wavelength (nm):</label> <input type="number" name="filter-central_wavelength_nm" value="550.0" step="1" required></li>
@@ -100,7 +97,7 @@
                             <li><label>Default Extinction:</label> <input type="number" name="filter-default_extinction" value="0.15" step="0.01" required></li>
                         </ul>
                     </details>
-                </details>
+                </div>
             </section>
 
             <hr>

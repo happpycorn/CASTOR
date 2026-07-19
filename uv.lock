@@ -95,6 +95,7 @@ dependencies = [
     { name = "pywebview" },
     { name = "scipy" },
     { name = "skyfield" },
+    { name = "speclite" },
     { name = "uvicorn" },
 ]
 
@@ -114,6 +115,7 @@ requires-dist = [
     { name = "pywebview", specifier = ">=6.2.1" },
     { name = "scipy", specifier = ">=1.17.1" },
     { name = "skyfield", specifier = ">=1.54" },
+    { name = "speclite", specifier = ">=1.0.0" },
     { name = "uvicorn", specifier = ">=0.51.0" },
 ]
 
@@ -1206,6 +1208,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c9/8c/98bf5d9042218580fc10c4ba0c51b9af26bc73b614ce64341c0dfad39074/skyfield-1.54.tar.gz", hash = "sha256:bf8b79d6dbbe1add0327aca485d6388bb6a13cab70528d015913a9b07a1d6903", size = 346829, upload-time = "2026-01-18T19:16:15.114Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e7/8a/f196038b2bea40c372d900803dac0d5e4eab578cb05b92ff7172ced4c1cf/skyfield-1.54-py3-none-any.whl", hash = "sha256:c9b313185448963ea7fa4cf8e4298ba028b179b80ebd4c5675497519f21c04a2", size = 370380, upload-time = "2026-01-18T19:16:13.806Z" },
+]
+
+[[package]]
+name = "speclite"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "astropy" },
+    { name = "matplotlib" },
+    { name = "pyyaml" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c8/5c/0ae1e308b957137800d0678d140f918f879f845d259250da3ff366aca36b/speclite-1.0.0.tar.gz", hash = "sha256:51cdff676004e5671cb4696e9e056f9b83505e8ebcf91ae474659015fc730d24", size = 2117483, upload-time = "2026-03-16T22:05:10.85Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7a/9c/ded2f0569b2f393f149e32126c4055400c2f692990b467bd1136ba9160af/speclite-1.0.0-py3-none-any.whl", hash = "sha256:4bc8cb7f718b347e0ce566cb5ed341684c8efebe4a77f2a49aabe8ee085465d7", size = 2170548, upload-time = "2026-03-16T22:05:09.287Z" },
 ]
 
 [[package]]

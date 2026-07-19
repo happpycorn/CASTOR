@@ -1,0 +1,109 @@
+{
+  "telescopes": {
+    "LOT": {
+      "telescope-diameter_m": 1.0,
+      "telescope-focal_length_m": 8.0,
+      "telescope-m1_reflectance": 0.92,
+      "telescope-m2_reflectance": 0.92,
+      "telescope-glass_transmission": 0.95,
+      "telescope-central_obstruction_linear_ratio": 0.3,
+      "telescope-additional_throughput": 1.0
+    },
+    "SLT": {
+      "telescope-diameter_m": 0.4,
+      "telescope-focal_length_m": 3.2,
+      "telescope-m1_reflectance": 0.92,
+      "telescope-m2_reflectance": 0.92,
+      "telescope-glass_transmission": 0.95,
+      "telescope-central_obstruction_linear_ratio": 0.3,
+      "telescope-additional_throughput": 1.0
+    },
+    "ESO_Reference": {
+      "telescope-diameter_m": null,
+      "telescope-focal_length_m": null,
+      "telescope-m1_reflectance": null,
+      "telescope-m2_reflectance": null,
+      "telescope-glass_transmission": null,
+      "telescope-central_obstruction_linear_ratio": null,
+      "telescope-additional_throughput": null
+    }
+  },
+  "cameras": {
+    "Sophia": {
+      "camera-pixel_size_micron": 15.0,
+      "camera-resolution_x": 2048,
+      "camera-resolution_y": 2048,
+      "camera-read_noise_e": 5.0,
+      "camera-dark_current_e_per_sec": 0.01,
+      "camera-quantum_efficiency": 0.85,
+      "camera-readout_speed_khz": 100.0,
+      "camera-n_amplifiers": 2,
+      "camera-gain": 1.5,
+      "camera-shutter_overhead_sec": 0.0,
+      "camera-full_well_capacity_e": 100000
+    },
+    "Default_SLT_Cam": {
+      "camera-pixel_size_micron": 9.0,
+      "camera-resolution_x": 4096,
+      "camera-resolution_y": 4096,
+      "camera-read_noise_e": 3.5,
+      "camera-dark_current_e_per_sec": 0.01,
+      "camera-quantum_efficiency": 0.85,
+      "camera-readout_speed_khz": 100.0,
+      "camera-n_amplifiers": 2,
+      "camera-gain": 1.5,
+      "camera-shutter_overhead_sec": 0.0,
+      "camera-full_well_capacity_e": 50000
+    },
+    "ESO_Reference": {
+      "camera-pixel_size_micron": null,
+      "camera-resolution_x": null,
+      "camera-resolution_y": null,
+      "camera-read_noise_e": null,
+      "camera-dark_current_e_per_sec": null,
+      "camera-quantum_efficiency": null,
+      "camera-readout_speed_khz": null,
+      "camera-n_amplifiers": null,
+      "camera-gain": null,
+      "camera-shutter_overhead_sec": null,
+      "camera-full_well_capacity_e": null
+    }
+  },
+  "filters": {
+    "Sloan_u": {
+      "filter-central_wavelength_nm": 354.0,
+      "filter-fwhm_nm": 56.0,
+      "filter-peak_transmission": null,
+      "filter-zero_mag_flux": null,
+      "filter-default_extinction": null
+    },
+    "Sloan_g": {
+      "filter-central_wavelength_nm": 477.0,
+      "filter-fwhm_nm": 137.0,
+      "filter-peak_transmission": null,
+      "filter-zero_mag_flux": null,
+      "filter-default_extinction": null
+    },
+    "Sloan_r": {
+      "filter-central_wavelength_nm": 623.0,
+      "filter-fwhm_nm": 137.0,
+      "filter-peak_transmission": null,
+      "filter-zero_mag_flux": null,
+      "filter-default_extinction": null
+    },
+    "Sloan_i": {
+      "filter-central_wavelength_nm": 763.0,
+      "filter-fwhm_nm": 153.0,
+      "filter-peak_transmission": null,
+      "filter-zero_mag_flux": null,
+      "filter-default_extinction": null
+    },
+    "Sloan_z": {
+      "filter-central_wavelength_nm": 913.0,
+      "filter-fwhm_nm": 137.0,
+      "filter-peak_transmission": null,
+      "filter-zero_mag_flux": null,
+      "filter-default_extinction": null
+    }
+  }
+}
