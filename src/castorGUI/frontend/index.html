@@ -31,13 +31,13 @@
                     <details>
                         <summary>🔭 Telescope Optics & Specs</summary>
                         <ul>
-                            <li><label for="tel-diameter">Aperture / Diameter (m):</label> <input type="number" id="tel-diameter" name="telescope-diameter_m" value="1.0" step="0.1" required></li>
-                            <li><label>Focal Length (m):</label> <input type="number" name="telescope-focal_length_m" value="8.0" step="0.1" required></li>
-                            <li><label>M1 Reflectance:</label> <input type="number" name="telescope-m1_reflectance" value="0.92" step="0.01" max="1" min="0" required></li>
-                            <li><label>M2 Reflectance:</label> <input type="number" name="telescope-m2_reflectance" value="0.92" step="0.01" max="1" min="0" required></li>
-                            <li><label>Glass Transmission:</label> <input type="number" name="telescope-glass_transmission" value="0.95" step="0.01" max="1" min="0" required></li>
-                            <li><label>Central Obstruction Ratio:</label> <input type="number" name="telescope-central_obstruction_linear_ratio" value="0.3" step="0.01" max="1" min="0" required></li>
-                            <li><label>Additional Throughput:</label> <input type="number" name="telescope-additional_throughput" value="1.0" step="0.01" max="1" min="0" required></li>
+                            <li><label for="tel-diameter">Aperture / Diameter (m):</label> <input type="number" id="tel-diameter" name="telescope-diameter_m" value="1.0" step="any" required></li>
+                            <li><label>Focal Length (m):</label> <input type="number" name="telescope-focal_length_m" value="8.0" step="any" required></li>
+                            <li><label>M1 Reflectance:</label> <input type="number" name="telescope-m1_reflectance" value="0.92" step="any" max="1" min="0" required></li>
+                            <li><label>M2 Reflectance:</label> <input type="number" name="telescope-m2_reflectance" value="0.92" step="any" max="1" min="0" required></li>
+                            <li><label>Glass Transmission:</label> <input type="number" name="telescope-glass_transmission" value="0.95" step="any" max="1" min="0" required></li>
+                            <li><label>Central Obstruction Ratio:</label> <input type="number" name="telescope-central_obstruction_linear_ratio" value="0.3" step="any" max="1" min="0" required></li>
+                            <li><label>Additional Throughput:</label> <input type="number" name="telescope-additional_throughput" value="1.0" step="any" max="1" min="0" required></li>
                         </ul>
                     </details>
                 </div>
@@ -55,7 +55,7 @@
                     <details>
                         <summary>📷 Camera Detector & Noise</summary>
                         <ul>
-                            <li><label>Pixel Size (μm):</label> <input type="number" name="camera-pixel_size_micron" value="15.0" step="0.1" required></li>
+                            <li><label>Pixel Size (μm):</label> <input type="number" name="camera-pixel_size_micron" value="15.0" step="any" required></li>
                             <li><label>Resolution (X / Y):</label> <input type="number" name="camera-resolution_x" value="2048" required> x <input type="number" name="camera-resolution_y" value="2048" required></li>
                             <li>
                                 <label for="cam-binning-x">Binning X / Y:</label>
@@ -64,14 +64,14 @@
                                     <input type="number" id="cam-binning-y" name="camera-binning_y" value="1" min="1" required> <span>y</span> 
                                 </div>
                             </li>
-                            <li><label for="cam-read-noise">Read Noise (e-/pix):</label> <input type="number" id="cam-read-noise" name="camera-read_noise_e" value="5.0" step="0.1" required></li>
-                            <li><label for="cam-dark-current">Dark Current (e-/sec/pix):</label> <input type="number" id="cam-dark-current" name="camera-dark_current_e_per_sec" value="0.01" step="0.001" required></li>
-                            <li><label>Quantum Efficiency (QE):</label> <input type="number" name="camera-quantum_efficiency" value="0.85" step="0.01" max="1" min="0" required></li>
-                            <li><label>Readout Speed (kHz):</label> <input type="number" name="camera-readout_speed_khz" value="100.0" step="1" required></li>
+                            <li><label for="cam-read-noise">Read Noise (e-/pix):</label> <input type="number" id="cam-read-noise" name="camera-read_noise_e" value="5.0" step="any" required></li>
+                            <li><label for="cam-dark-current">Dark Current (e-/sec/pix):</label> <input type="number" id="cam-dark-current" name="camera-dark_current_e_per_sec" value="0.01" step="any" required></li>
+                            <li><label>Quantum Efficiency (QE):</label> <input type="number" name="camera-quantum_efficiency" value="0.85" step="any" max="1" min="0" required></li>
+                            <li><label>Readout Speed (kHz):</label> <input type="number" name="camera-readout_speed_khz" value="100.0" step="any" required></li>
                             <li><label>Number of Amplifiers:</label> <input type="number" name="camera-n_amplifiers" value="2" min="1" required></li>
-                            <li><label>Gain (e-/ADU):</label> <input type="number" name="camera-gain" value="1.5" step="0.1" required></li>
-                            <li><label>Shutter Overhead (sec):</label> <input type="number" name="camera-shutter_overhead_sec" value="0.0" step="0.1" required></li>
-                            <li><label>Full Well Capacity (e-):</label> <input type="number" name="camera-full_well_capacity_e" value="100000" step="1000"></li>
+                            <li><label>Gain (e-/ADU):</label> <input type="number" name="camera-gain" value="1.5" step="any" required></li>
+                            <li><label>Shutter Overhead (sec):</label> <input type="number" name="camera-shutter_overhead_sec" value="0.0" step="any" required></li>
+                            <li><label>Full Well Capacity (e-):</label> <input type="number" name="camera-full_well_capacity_e" value="100000" step="any"></li>
                         </ul>
                     </details>
                 </div>
@@ -90,11 +90,11 @@
                         <summary>🌈 Filter Characteristics</summary>
                         <ul>
                             <li><label>Filter Name:</label> <input type="text" name="filter-name" value="V" required></li>
-                            <li><label>Central Wavelength (nm):</label> <input type="number" name="filter-central_wavelength_nm" value="550.0" step="1" required></li>
-                            <li><label>FWHM (nm):</label> <input type="number" name="filter-fwhm_nm" value="89.0" step="0.1" required></li>
-                            <li><label>Peak Transmission:</label> <input type="number" name="filter-peak_transmission" value="0.9" step="0.01" max="1" min="0" required></li>
+                            <li><label>Central Wavelength (nm):</label> <input type="number" name="filter-central_wavelength_nm" value="550.0" step="any" required></li>
+                            <li><label>FWHM (nm):</label> <input type="number" name="filter-fwhm_nm" value="89.0" step="any" required></li>
+                            <li><label>Peak Transmission:</label> <input type="number" name="filter-peak_transmission" value="0.9" step="any" max="1" min="0" required></li>
                             <li><label>Zero-Magnitude Flux (W/m²/m):</label> <input type="number" name="filter-zero_mag_flux" value="3.63e-11" step="any" required></li>
-                            <li><label>Default Extinction:</label> <input type="number" name="filter-default_extinction" value="0.15" step="0.01" required></li>
+                            <li><label>Default Extinction:</label> <input type="number" name="filter-default_extinction" value="0.15" step="any" required></li>
                         </ul>
                     </details>
                 </div>
@@ -116,14 +116,14 @@
                 <div id="target-mag-group">
                     <p>
                         <label for="target-mag">Apparent Magnitude (mag):</label>
-                        <input type="number" id="target-mag" name="target-target_mag" value="15.0" step="0.1">
+                        <input type="number" id="target-mag" name="target-target_mag" value="15.0" step="any">
                     </p>
                 </div>
 
                 <div id="target-sb-group" hidden>
                     <p>
                         <label for="target-sb">Surface Brightness (mag/arcsec²):</label>
-                        <input type="number" id="target-sb" name="target-surface_brightness" value="20.0" step="0.1">
+                        <input type="number" id="target-sb" name="target-surface_brightness" value="20.0" step="any">
                     </p>
                 </div>
 
@@ -141,7 +141,7 @@
                         </li>
                         <li>
                             <label for="temperature">Blackbody Temperature (K):</label>
-                            <input type="number" id="temperature" name="target-temperature_k" value="5800" step="10" min="0">
+                            <input type="number" id="temperature" name="target-temperature_k" value="5800" step="any" min="0">
                         </li>
                     </ul>
 
@@ -149,7 +149,7 @@
                     <ul>
                         <li>
                             <label for="redshift">Redshift (z):</label>
-                            <input type="number" id="redshift" name="target-redshift" value="0.0" step="0.001" min="0" required>
+                            <input type="number" id="redshift" name="target-redshift" value="0.0" step="any" min="0" required>
                         </li>
                         
                         <li>
@@ -157,7 +157,7 @@
                             <div class="inline-group">
                                 <input type="number" id="ra-h" name="target-ra_h" placeholder="h" min="0" max="23"> <span>h</span>
                                 <input type="number" id="ra-m" name="target-ra_m" placeholder="m" min="0" max="59"> <span>m</span>
-                                <input type="number" id="ra-s" name="target-ra_s" placeholder="s" min="0" max="59.9" step="0.1"> <span>s</span>
+                                <input type="number" id="ra-s" name="target-ra_s" placeholder="s" min="0" max="59.9" step="any"> <span>s</span>
                             </div>
                         </li>
                         <li>
@@ -165,7 +165,7 @@
                             <div class="inline-group">
                                 <input type="number" id="dec-d" name="target-dec_d" placeholder="deg" min="-90" max="90"> <span>deg</span>
                                 <input type="number" id="dec-m" name="target-dec_m" placeholder="m" min="0" max="59"> <span>m</span>
-                                <input type="number" id="dec-s" name="target-dec_s" placeholder="s" min="0" max="59.9" step="0.1"> <span>s</span>
+                                <input type="number" id="dec-s" name="target-dec_s" placeholder="s" min="0" max="59.9" step="any"> <span>s</span>
                             </div>
                         </li>
                     </ul>
@@ -179,17 +179,17 @@
                 
                 <p>
                     <label for="seeing">Seeing (FWHM arcsec):</label>
-                    <input type="number" id="seeing" name="environment-seeing_fwhm_arcsec" value="1.5" step="0.1" required>
+                    <input type="number" id="seeing" name="environment-seeing_fwhm_arcsec" value="1.5" step="any" required>
                 </p>
                 
                 <p>
                     <label for="airmass">Airmass:</label>
-                    <input type="number" id="airmass" name="environment-airmass" value="1.2" step="0.1" min="1.0" required>
+                    <input type="number" id="airmass" name="environment-airmass" value="1.2" step="any" min="1.0" required>
                 </p>
 
                 <p>
                     <label for="sky-brightness">Dark Sky Background (mag/arcsec²):</label>
-                    <input type="number" id="sky-brightness" name="environment-sky_brightness_mag_arcsec2" value="21.0" step="0.1" required>
+                    <input type="number" id="sky-brightness" name="environment-sky_brightness_mag_arcsec2" value="21.0" step="any" required>
                 </p>
 
                 <details>
@@ -198,7 +198,7 @@
                     <ul>
                         <li>
                             <label for="extinction">Custom Extinction (mag/airmass):</label>
-                            <input type="number" id="extinction" name="environment-extinction_coeff" step="0.01" placeholder="Leave blank for filter default">
+                            <input type="number" id="extinction" name="environment-extinction_coeff" step="any" placeholder="Leave blank for filter default">
                         </li>
                     </ul>
 
@@ -212,9 +212,9 @@
                         <li>
                             <label>Observatory Coordinates (Lat / Lon / Elev m):</label>
                             <div class="inline-group">
-                                <input type="number" id="obs-lat" name="environment-obs_lat" value="23.47" step="0.01">
-                                <input type="number" id="obs-lon" name="environment-obs_lon" value="120.87" step="0.01">
-                                <input type="number" id="obs-elev" name="environment-obs_elev" value="2862" step="1">
+                                <input type="number" id="obs-lat" name="environment-obs_lat" value="23.47" step="any">
+                                <input type="number" id="obs-lon" name="environment-obs_lon" value="120.87" step="any">
+                                <input type="number" id="obs-elev" name="environment-obs_elev" value="2862" step="any">
                             </div>
                         </li>
                     </ul>
@@ -246,7 +246,7 @@
                         <label id="label-calc-values" for="calc-values">
                             Exposure Time (sec):
                         </label>
-                        <input type="number" id="calc-values" name="options-values-single" value="300" min="0.1" step="0.1" required>
+                        <input type="number" id="calc-values" name="options-values-single" value="300" min="0.1" step="any" required>
                     </p>
                     
                     <p id="array-input-group" hidden>

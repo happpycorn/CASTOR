@@ -19,13 +19,13 @@
       "telescope-additional_throughput": 1.0
     },
     "ESO_Reference": {
-      "telescope-diameter_m": null,
-      "telescope-focal_length_m": null,
-      "telescope-m1_reflectance": null,
-      "telescope-m2_reflectance": null,
-      "telescope-glass_transmission": null,
-      "telescope-central_obstruction_linear_ratio": null,
-      "telescope-additional_throughput": null
+      "telescope-diameter_m": 8.2,
+      "telescope-focal_length_m": 12.38,
+      "telescope-m1_reflectance": 0.92,
+      "telescope-m2_reflectance": 0.92,
+      "telescope-glass_transmission": 0.95,
+      "telescope-central_obstruction_linear_ratio": 0.14,
+      "telescope-additional_throughput": 1.0
     }
   },
   "cameras": {
@@ -56,17 +56,17 @@
       "camera-full_well_capacity_e": 50000
     },
     "ESO_Reference": {
-      "camera-pixel_size_micron": null,
-      "camera-resolution_x": null,
-      "camera-resolution_y": null,
-      "camera-read_noise_e": null,
-      "camera-dark_current_e_per_sec": null,
-      "camera-quantum_efficiency": null,
-      "camera-readout_speed_khz": null,
-      "camera-n_amplifiers": null,
-      "camera-gain": null,
-      "camera-shutter_overhead_sec": null,
-      "camera-full_well_capacity_e": null
+      "camera-pixel_size_micron": 15.0,
+      "camera-resolution_x": 2048,
+      "camera-resolution_y": 4096,
+      "camera-read_noise_e": 3.15,
+      "camera-dark_current_e_per_sec": 0.000583,
+      "camera-quantum_efficiency": 0.9,
+      "camera-readout_speed_khz": 200.0,
+      "camera-n_amplifiers": 2,
+      "camera-gain": 1.0,
+      "camera-shutter_overhead_sec": 0.0,
+      "camera-full_well_capacity_e": 80400
     }
   },
   "filters": {
