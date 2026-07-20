@@ -116,7 +116,8 @@ def calc_throughput(
     m2_reflectance: float, 
     filter_transmittance: float, 
     glass_transmittance: float, 
-    quantum_efficiency: float
+    quantum_efficiency: float,
+    additional_throughput: float,
 ) -> float:
     """
     Calculate the total system throughput by multiplying various efficiency factors.
@@ -128,12 +129,13 @@ def calc_throughput(
         filter_transmittance (float): Peak transmittance of the filter.
         glass_transmittance (float): Transmittance of the camera glass window.
         quantum_efficiency (float): Quantum efficiency (QE) of the CCD at the given band.
+        additional_throughput (float): Additional throughput due to other factors like lens imperfections or atmospheric conditions
 
     Returns:
         float: The total system throughput as a ratio (0.0 to 1.0).
     """
     # Simply the product of all efficiency stages
-    return m1_reflectance * m2_reflectance * filter_transmittance * glass_transmittance * quantum_efficiency
+    return m1_reflectance * m2_reflectance * filter_transmittance * glass_transmittance * quantum_efficiency * additional_throughput
 
 def calc_flux_in_aperture(aperture_radius_arcsec: float, seeing_arcsec: float) -> float:
     """

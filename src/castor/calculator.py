@@ -77,7 +77,8 @@ class CastorCalculator:
             instrument.telescope.m2_reflectance,
             instrument.optic_filter.peak_transmission,
             instrument.telescope.glass_transmission,
-            instrument.camera.quantum_efficiency
+            instrument.camera.quantum_efficiency,
+            instrument.telescope.additional_throughput
         )
 
         return hw

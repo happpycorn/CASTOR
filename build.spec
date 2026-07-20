@@ -6,7 +6,7 @@ pathex = [os.path.abspath('src')]
 
 # 靜態檔案打包 (不再需要煩惱 Windows 或 Mac 的符號差異)
 datas = [
-    ('src/castor_gui/frontend', 'frontend')
+    ('src/castorGUI/frontend', 'frontend')
 ]
 
 # 你想排除的「垃圾」模組全部寫在這裡，想加幾個就加幾個
@@ -19,7 +19,7 @@ excludes = [
 ]
 
 a = Analysis(
-    ['src/castor_gui/app.py'],
+    ['src/castorGUI/app.py'],
     pathex=pathex,
     binaries=[],
     datas=datas,

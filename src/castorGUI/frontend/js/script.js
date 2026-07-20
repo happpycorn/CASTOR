@@ -3,65 +3,100 @@
 // ==========================================
 class UIController {
     constructor() {
-        // 預先定義好硬體模板的數據字典
-        this.hardwarePresets = {
-            'LOT_Sophia': {
-                'telescope-diameter_m': 1.0,
-                'telescope-focal_length_m': 8.0,
-                'camera-pixel_size_micron': 15.0,
-                'camera-resolution_x': 2048,
-                'camera-resolution_y': 2048,
-                'camera-read_noise_e': 5.0,
-                'camera-full_well_capacity_e': 100000
-            },
-            'SLT': {
-                'telescope-diameter_m': 0.4,
-                'telescope-focal_length_m': 3.2, // 假設 SLT 焦距
-                'camera-pixel_size_micron': 9.0,
-                'camera-resolution_x': 4096,
-                'camera-resolution_y': 4096,
-                'camera-read_noise_e': 3.5,
-                'camera-full_well_capacity_e': 50000
-            }
-        };
-
-        // 初始化時綁定所有事件
+        // 取代原本寫死的字典，改為空物件準備接收 API 資料
+        this.presets = null;
         this.bindEvents();
     }
 
-    bindEvents() {
-        // 1. 監聽硬體模板切換
-        const hwSelect = document.getElementById('hw-template');
-        hwSelect.addEventListener('change', (e) => this.updateHardwarePresets(e.target.value));
+    // 新增：向後端請求 JSON 檔案，並初始化下拉選單
+    async loadPresets() {
+        try {
+            const response = await fetch('/api/presets');
+            if (!response.ok) throw new Error('無法取得預設硬體參數');
+            this.presets = await response.json();
 
-        // 2. 監聽目標形態切換 (點光源 vs 延展光源)
-        const targetSelect = document.getElementById('target-type');
-        targetSelect.addEventListener('change', (e) => this.toggleTargetMode(e.target.value));
+            // 將資料注入到剛剛改好的三個下拉選單
+            this.populateSelect('telescope-template', this.presets.telescopes);
+            this.populateSelect('camera-template', this.presets.cameras);
+            this.populateSelect('filter-template', this.presets.filters);
 
-        // 3. 監聽計算目標切換 (Solve SNR vs Solve Time)
-        const calcModeSelect = document.getElementById('calc-mode');
-        calcModeSelect.addEventListener('change', (e) => this.toggleCalcMode(e.target.value));
-
-        // 4. 監聽陣列模式 Checkbox
-        const arrayToggle = document.getElementById('toggle-array-mode');
-        arrayToggle.addEventListener('change', (e) => this.toggleArrayMode(e.target.checked));
+        } catch (error) {
+            console.error(error);
+            alert("載入硬體預設檔失敗，請確認後端已啟動。");
+        }
     }
 
-    // --- 具體邏輯實作 ---
+    // 新增：動態生成 <option> 並掛載
+    populateSelect(elementId, presetCategory) {
+        const select = document.getElementById(elementId);
+        select.innerHTML = ''; // 清空 'Loading...'
 
-    updateHardwarePresets(templateName) {
-        if (templateName === 'CUSTOM') return; // 自訂模式不覆蓋現有數值
+        for (const key in presetCategory) {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = key.replace(/_/g, ' '); // 把底線換成空白，稍微美化一下顯示
+            select.appendChild(option);
+        }
 
-        const preset = this.hardwarePresets[templateName];
-        if (!preset) return;
+        // 加入自訂選項
+        const customOption = document.createElement('option');
+        customOption.value = 'CUSTOM';
+        customOption.textContent = 'Custom Parameters';
+        select.appendChild(customOption);
 
-        // 走訪字典，把數值填入對應的 name 屬性輸入框中
-        for (const [inputName, value] of Object.entries(preset)) {
+        // 預設選取第一個，並觸發數值填寫
+        if (Object.keys(presetCategory).length > 0) {
+            const firstKey = Object.keys(presetCategory)[0];
+            select.value = firstKey;
+            
+            // 找出這個選單對應的是 telescopes, cameras 還是 filters
+            const categoryMap = {
+                'telescope-template': 'telescopes',
+                'camera-template': 'cameras',
+                'filter-template': 'filters'
+            };
+            this.applyPreset(categoryMap[elementId], firstKey);
+        }
+    }
+
+    bindEvents() {
+        // 把原本的 updateHardwarePresets 拆解成三組，並呼叫通用的 applyPreset 方法
+        document.getElementById('telescope-template').addEventListener('change', (e) => {
+            this.applyPreset('telescopes', e.target.value);
+        });
+
+        document.getElementById('camera-template').addEventListener('change', (e) => {
+            this.applyPreset('cameras', e.target.value);
+        });
+
+        document.getElementById('filter-template').addEventListener('change', (e) => {
+            this.applyPreset('filters', e.target.value);
+        });
+
+        // 以下保留原本的邏輯
+        document.getElementById('target-type').addEventListener('change', (e) => this.toggleTargetMode(e.target.value));
+        document.getElementById('calc-mode').addEventListener('change', (e) => this.toggleCalcMode(e.target.value));
+        document.getElementById('toggle-array-mode').addEventListener('change', (e) => this.toggleArrayMode(e.target.checked));
+    }
+
+    // 將原本的 updateHardwarePresets 改寫為通用的資料綁定器
+    applyPreset(category, templateName) {
+        if (templateName === 'CUSTOM') return; 
+        if (!this.presets || !this.presets[category]) return;
+
+        const presetData = this.presets[category][templateName];
+        if (!presetData) return;
+
+        // 走訪 JSON 欄位，自動對應 HTML name
+        for (const [inputName, value] of Object.entries(presetData)) {
+            // 如果遇到 null (例如 ESO_Reference 裡面預留的空位)，就跳過不處理
+            if (value === null) continue;
+
             const inputElement = document.querySelector(`input[name="${inputName}"]`);
             if (inputElement) {
                 inputElement.value = value;
                 
-                // 加上一個短暫的 CSS 閃爍特效，提示使用者數值被自動更新了
+                // 保留閃爍特效提示使用者
                 inputElement.style.transition = 'background-color 0.3s';
                 inputElement.style.backgroundColor = 'rgba(197, 160, 89, 0.3)';
                 setTimeout(() => {
@@ -71,35 +106,25 @@ class UIController {
         }
     }
 
-    toggleTargetMode(mode) {
+    toggleTargetMode(mode) { /* 保持原樣不變 */
         const magGroup = document.getElementById('target-mag-group');
         const sbGroup = document.getElementById('target-sb-group');
-
-        if (mode === 'point') {
-            magGroup.hidden = false;
-            sbGroup.hidden = true;
-        } else if (mode === 'extended') {
-            magGroup.hidden = true;
-            sbGroup.hidden = false;
-        }
+        if (mode === 'point') { magGroup.hidden = false; sbGroup.hidden = true; } 
+        else if (mode === 'extended') { magGroup.hidden = true; sbGroup.hidden = false; }
     }
 
-    toggleCalcMode(mode) {
+    toggleCalcMode(mode) { /* 保持原樣不變 */
         const label = document.getElementById('label-calc-values');
-        if (mode === 'solve_snr') {
-            label.textContent = 'Exposure Time (sec): ';
-        } else if (mode === 'solve_time') {
-            label.textContent = 'Target SNR: ';
-        }
+        if (mode === 'solve_snr') { label.textContent = 'Exposure Time (sec): '; } 
+        else if (mode === 'solve_time') { label.textContent = 'Target SNR: '; }
     }
 
-    toggleArrayMode(isArray) {
+    toggleArrayMode(isArray) { /* 保持原樣不變 */
         const singleInput = document.getElementById('calc-values');
         const arrayGroup = document.getElementById('array-input-group');
-
         if (isArray) {
             singleInput.hidden = true;
-            singleInput.required = false; // 隱藏時必須取消必填，否則表單會送不出去
+            singleInput.required = false; 
             arrayGroup.hidden = false;
         } else {
             singleInput.hidden = false;
@@ -108,7 +133,7 @@ class UIController {
         }
     }
 
-    setLoadingState(isLoading) {
+    setLoadingState(isLoading) { /* 保持原樣不變 */
         const btn = document.getElementById('btn-submit');
         if (isLoading) {
             btn.disabled = true;
@@ -469,26 +494,26 @@ class ResultRenderer {
 // ==========================================
 // 🚀 主程式進入點 (Main Execution)
 // ==========================================
-document.addEventListener('DOMContentLoaded', () => {
-    // 啟動 UI 監聽
+document.addEventListener('DOMContentLoaded', async () => {
+    // 啟動 UI 監聽與載入預設值
     const ui = new UIController();
+    
+    // 新增：等待後端回傳 presets.json 並渲染選單
+    await ui.loadPresets();
 
-    // 攔截表單發射事件
+    // 攔截表單發射事件 (保持不變)
     document.getElementById('castor-form').addEventListener('submit', async (e) => {
         e.preventDefault(); 
         
         ui.setLoadingState(true);
 
         try {
-            // 1. 打包
             const payload = PayloadBuilder.build();
             console.log("Payload ready:", payload);
             
-            // 2. 發射 API (開發階段如果沒有後端，這裡會報錯是正常的)
             const resultData = await CastorAPI.calculate(payload);
             console.log("Response received:", resultData);
             
-            // 3. 渲染
             const isArrayMode = document.getElementById('toggle-array-mode').checked;
             ResultRenderer.render(resultData, isArrayMode);
 

@@ -92,7 +92,7 @@ def test_snr_to_exposure_time_consistency():
 def test_calc_throughput_basic():
     """Verify total throughput calculation."""
     # 假設 M1=0.9, M2=0.9, Filter=0.8, Glass=0.95, QE=0.8
-    result = calc_throughput(0.9, 0.9, 0.8, 0.95, 0.8)
+    result = calc_throughput(0.9, 0.9, 0.8, 0.95, 0.8, 1)
     expected = 0.9 * 0.9 * 0.8 * 0.95 * 0.8  # 應為 0.49248
     assert pytest.approx(result) == expected
 

@@ -12,6 +12,7 @@ dependencies = [
     "pywebview>=6.2.1",
     "scipy>=1.17.1",
     "skyfield>=1.54",
+    "speclite>=1.0.0",
     "uvicorn>=0.51.0",
 ]
 
