@@ -18,13 +18,13 @@
       "telescope-central_obstruction_linear_ratio": 0.3,
       "telescope-additional_throughput": 1.0
     },
-    "ESO_Reference": {
-      "telescope-diameter_m": 8.2,
-      "telescope-focal_length_m": 12.38,
-      "telescope-m1_reflectance": 0.92,
-      "telescope-m2_reflectance": 0.92,
+    "VLT": {
+      "telescope-diameter_m": 8.0,
+      "telescope-focal_length_m": 108.9,
+      "telescope-m1_reflectance": 0.91,
+      "telescope-m2_reflectance": 0.91,
       "telescope-glass_transmission": 0.95,
-      "telescope-central_obstruction_linear_ratio": 0.14,
+      "telescope-central_obstruction_linear_ratio": 0.136,
       "telescope-additional_throughput": 1.0
     }
   },
@@ -55,18 +55,18 @@
       "camera-shutter_overhead_sec": 0.0,
       "camera-full_well_capacity_e": 50000
     },
-    "ESO_Reference": {
+    "FORS2_MIT_Camera": {
       "camera-pixel_size_micron": 15.0,
-      "camera-resolution_x": 2048,
+      "camera-resolution_x": 4096,
       "camera-resolution_y": 4096,
-      "camera-read_noise_e": 3.15,
-      "camera-dark_current_e_per_sec": 0.000583,
-      "camera-quantum_efficiency": 0.9,
-      "camera-readout_speed_khz": 200.0,
+      "camera-read_noise_e": 2.9,
+      "camera-dark_current_e_per_sec": 0.00058,
+      "camera-quantum_efficiency": 0.65,
+      "camera-readout_speed_khz": 100.0,
       "camera-n_amplifiers": 2,
-      "camera-gain": 1.0,
-      "camera-shutter_overhead_sec": 0.0,
-      "camera-full_well_capacity_e": 80400
+      "camera-gain": 0.70,
+      "camera-shutter_overhead_sec": 0.25,
+      "camera-full_well_capacity_e": 81918
     }
   },
   "filters": {
@@ -102,6 +102,13 @@
       "filter-central_wavelength_nm": 913.0,
       "filter-fwhm_nm": 137.0,
       "filter-peak_transmission": null,
+      "filter-zero_mag_flux": null,
+      "filter-default_extinction": null
+    },
+    "FORS2_g_HIGH": {
+      "filter-central_wavelength_nm": 467.0,
+      "filter-fwhm_nm": 160.3,
+      "filter-peak_transmission": 0.85,
       "filter-zero_mag_flux": null,
       "filter-default_extinction": null
     }
