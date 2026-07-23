@@ -322,3 +322,80 @@ class ObservationResponse(StrictModel):
         ..., 
         description="System safety flags and boundary warnings."
     )
+
+class TimeSeriesEnvironment(StrictModel):
+    location: ObservatoryLocation = Field(
+        ..., 
+        description="Observer's geographic location."
+    )
+    start_time_utc: AwareDatetime = Field(
+        ..., 
+        description="Observation start timestamp in ISO 8601 UTC format."
+    )
+    end_time_utc: AwareDatetime = Field(
+        ..., 
+        description="Observation end timestamp in ISO 8601 UTC format."
+    )
+    time_step_minutes: PositiveFloat = Field(
+        ..., 
+        description="Time step interval for discrete expansion in minutes."
+    )
+    
+    mu_dark: float = Field(
+        ..., 
+        description="Intrinsic surface brightness of the moonless night sky in mag/arcsec²."
+    )
+    extinction_coeff: float = Field(
+        ..., 
+        description="Atmospheric attenuation per unit airmass in mag/airmass."
+    )
+    
+    seeing_fwhm: PositiveFloat = Field(..., description="Atmospheric seeing FWHM in arcseconds.")
+    diffraction_fwhm: PositiveFloat = Field(..., description="Diffraction limit FWHM in arcseconds.")
+    optical_fwhm: PositiveFloat = Field(..., description="Optical aberrations FWHM in arcseconds.")
+    tracking_fwhm: PositiveFloat = Field(..., description="Tracking error FWHM in arcseconds.")
+
+class BatchBaseOptions(StrictModel):
+    aperture_factor: PositiveFloat = Field(
+        ..., 
+        description="Multiplier defining the photometric aperture radius."
+    )
+    single_exp_time: PositiveFloat = Field(
+        ..., 
+        description="Integration time for an individual sub-exposure frame in seconds."
+    )
+
+class BatchSolveForSNR(BatchBaseOptions):
+    type: Literal["solve_snr"] = "solve_snr"
+    num_exposures: PositiveInt = Field(
+        ..., 
+        description="Total number of exposure frames."
+    )
+
+class BatchSolveForTime(BatchBaseOptions):
+    type: Literal["solve_time"] = "solve_time"
+    target_snr: PositiveFloat = Field(
+        ..., 
+        description="Goal Signal-to-Noise Ratio to solve for time."
+    )
+
+BatchCalculationOptions = Annotated[
+    Union[BatchSolveForSNR, BatchSolveForTime], 
+    Field(discriminator="type", description="Batch calculation strategies.")
+]
+
+class BatchObservationRequest(StrictModel):
+    instrument: InstrumentProfile = Field(..., description="Hardware configuration.")
+    target: TargetProfile = Field(..., description="Observation target profile.")
+    environment: TimeSeriesEnvironment = Field(..., description="Time-series environmental conditions.")
+    options: BatchCalculationOptions = Field(..., description="Batch calculation strategies.")
+
+class BatchCoreResult(StrictModel):
+    timestamps_iso: list[str] = Field(..., description="Expanded discrete UTC timestamps.")
+    total_snr: list[float] = Field(..., description="Total SNR array across the time series.")
+    single_snr: list[float] = Field(..., description="Single exposure SNR array.")
+    saturation_time_limit: list[float] = Field(..., description="Saturation time limit array [s].")
+
+class BatchObservationResponse(StrictModel):
+    core: BatchCoreResult = Field(..., description="Vectorized calculation results over time.")
+    flags: SystemFlags = Field(..., description="System safety flags and boundary warnings.")

@@ -20,11 +20,11 @@ __all__ = [
 def get_moon_and_target_geometry(
     target_ra: float, 
     target_dec: float, 
-    obs_time_utc: str,
+    obs_time_utc: str | list[str],
     lon: float = 120.8736,   # Default to Lulin Observatory
     lat: float = 23.4700,
     elevation: float = 2862.0
-) -> tuple[float, float, float, float]:
+) -> tuple[Numeric, Numeric, Numeric, Numeric]:
     """
     Calculate the geometric relationship between the moon and the target using Astropy.
     
@@ -45,14 +45,14 @@ def get_moon_and_target_geometry(
     
     sun_altaz = sun.transform_to(altaz_frame)
     moon_altaz = moon.transform_to(altaz_frame)
-    
-    rho_deg = cast(float, target_altaz.separation(moon_altaz).deg)
+
+    rho_deg = cast(Numeric, target_altaz.separation(moon_altaz).deg)
     
     elongation = sun_altaz.separation(moon_altaz)
-    alpha_deg = 180.0 - cast(float, elongation.deg)
+    alpha_deg = 180.0 - cast(Numeric, elongation.deg)
     
-    z_moon_deg = 90.0 - cast(float, moon_altaz.alt.deg) # type: ignore
-    z_target_deg = 90.0 - cast(float, target_altaz.alt.deg) # type: ignore
+    z_moon_deg = 90.0 - cast(Numeric, moon_altaz.alt.deg)       # type: ignore
+    z_target_deg = 90.0 - cast(Numeric, target_altaz.alt.deg)   # type: ignore
     
     return alpha_deg, rho_deg, z_moon_deg, z_target_deg
 
@@ -97,12 +97,12 @@ def krisciunas_schaefer_1991(
 def calculate_sky_brightness(
     target_ra: float, 
     target_dec: float, 
-    obs_time_utc: str,
+    obs_time_utc: str | list[str],
     mu_dark: float,
     lon: float = 120.8736,
     lat: float = 23.4700,
     elevation: float = 2862.0
-) -> float:
+) -> Numeric:
     """
     Calculate total sky surface brightness including lunar contribution.
     
@@ -115,13 +115,13 @@ def calculate_sky_brightness(
         target_ra, target_dec, obs_time_utc, lon, lat, elevation
     )
     
-    if z_moon >= 90.0: return float(mu_dark)
-        
-    B_moon_nl = float(krisciunas_schaefer_1991(alpha, rho, z_moon, z_target))
-    
+    B_moon_nl = krisciunas_schaefer_1991(alpha, rho, z_moon, z_target)
     B_dark_nl = 34.08 * (10.0 ** (0.4 * (22.5 - mu_dark)))
-    
+
     B_total = B_moon_nl + B_dark_nl
-    mu_sky = 22.5 - 2.5 * np.log10(B_total / 34.08)
+
+    B_total_safe = np.where(z_moon >= 90.0, B_dark_nl, B_total)
     
-    return float(mu_sky)
+    mu_sky = 22.5 - 2.5 * np.log10(B_total_safe / 34.08)
+    
+    return cast(Numeric, mu_sky)
