@@ -141,7 +141,11 @@ CASTOR strictly isolates physical phenomena from software execution logic. The a
 
 ### 3.2 Contract-Driven & Fail-Fast
 
-The system treats the calculation boundary as a strict contract. Utilizing Pydantic models, CASTOR validates all incoming requests at the very edge of the application (Phase 1: Ingress). It enforces both physical boundaries (e.g., optical transmissions must be between $0.0$ and $1.0$) and logical mutual exclusivity (e.g., requesting both `exposure_time` and `target_snr` simultaneously is forbidden). If a contract is violated, the system immediately rejects the request with a precise error trace, ensuring that the underlying physics engine never executes on invalid or unphysical data.
+The system treats the calculation boundary as a strict contract. Utilizing Pydantic models, CASTOR validates all incoming requests at the very edge of the application (Phase 1: Ingress). It enforces three levels of validation:
+
+1. **Physical Boundaries**: Mathematical limits are applied directly to custom types (e.g., optical transmissions between $0.0$ and $1.0$, Declination between $-90.0$ and $+90.0$).
+2. **Logical Mutual Exclusivity**: Enforces exact strategies (e.g., requesting both `exposure_time` and `target_snr` simultaneously is forbidden).
+3. **Strict Model Rejection**: All models inherit from a `StrictModel` (`extra="forbid"`), ensuring that any request containing unknown, misspelled, or garbage parameters is immediately rejected.
 
 ### 3.3 Statelessness
 
@@ -260,32 +264,22 @@ graph TD
     %% Core Root
     Root[ObservationRequest]
 
-    %% Domain Pillars (Pydantic Fields & Types)
-    P1[instrument<br/>: InstrumentProfile]
-    P2[target<br/>: TargetProfile<br/><i>Discriminated Union</i>]
-    P3[environment<br/>: EnvironmentCondition]
-    P4[options<br/>: CalculationOptions]
+    %% Domain Pillars
+    P1[instrument]
+    P2[target]
+    P3[environment]
+    P4[options]
 
     Root --> P1 & P2 & P3 & P4
 
-    %% Instrument Profile Sub-schemas
-    P1 --> P1_1[telescope: <br/>TelescopeSchema]
-    P1 --> P1_2[camera: <br/>CameraSchema]
-    P1 --> P1_3[optic_filter: <br/>FilterSchema]
-
-    %% Target Profile Sub-schemas (Polymorphism)
-    P2 --> P2_1[PointTarget]
-    P2 --> P2_2[ExtendedTarget]
-    P2 --> P2_3[Other...]
+    %% Target Profile Decoupling
+    P2 --> P2_1[morphology:<br/>Point / Extended]
+    P2 --> P2_2[sed:<br/>Flat / Temp]
+    P2 --> P2_3[brightness:<br/>Vega / AB / Jy / Flux]
 
     %% Styling
     style Root fill:transparent,stroke:#a871ff,stroke-width:3px
-    style P1 fill:transparent,stroke:#2b8cff,stroke-width:2px
     style P2 fill:transparent,stroke:#2b8cff,stroke-width:2px
-    style P3 fill:transparent,stroke:#2b8cff,stroke-width:2px
-    style P4 fill:transparent,stroke:#2b8cff,stroke-width:2px
-    
-    %% Highlight Polymorphic branches
     style P2_1 fill:transparent,stroke:#ff8c2b,stroke-width:2px,stroke-dasharray: 5 5
     style P2_2 fill:transparent,stroke:#ff8c2b,stroke-width:2px,stroke-dasharray: 5 5
     style P2_3 fill:transparent,stroke:#ff8c2b,stroke-width:2px,stroke-dasharray: 5 5

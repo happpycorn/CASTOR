@@ -1,366 +1,574 @@
 import numpy as np
-from scipy import constants
+from numpy.typing import NDArray
+from typing import TypeAlias
 
+Numeric: TypeAlias = float | NDArray[np.float64]
+
+# ==========================================
+# Public API Definition (Stage 2 Exports)
+# ==========================================
 __all__ = [
-    "calc_pixel_scale",
-    "calc_telescope_area",
-    "calc_aperture_area",
-    "calc_npix_aperture",
-    "calc_photon_energy",
-    "calc_throughput",
-    "calc_flux_in_aperture",
-    "calc_source_count_rate",
-    "calc_sky_count_rate",
-    "calc_exposure_time",
-    "calc_total_noise_and_snr",
-    "calc_total_signal",
-    "calc_readout_time",
-    "calc_total_observation_time",
+    "calculate_airmass",
+    "calculate_effective_area",
+    "calculate_photon_energy",
+    "calculate_total_throughput",
+    "calculate_pixel_scale",
+    "calculate_total_fwhm",
+    "calculate_aperture_geometry",
+    "convert_ab_to_wavelength_flux",
+    "convert_vega_to_wavelength_flux",
+
+    "calculate_point_source_rate",
+    "calculate_extended_source_rate",
+    "calculate_sky_background_rate",
+    "calculate_peak_pixel_rate",
+
+    "calculate_single_snr",
+    "calculate_total_snr",
+    "solve_required_exposures",
+    "calculate_saturation_time"
 ]
 
-PLANCK_CONSTANT, SPEED_OF_LIGHT = constants.h, constants.c
+# ==========================================
+# Physical Constants (CGS System)
+# ==========================================
+# Astronomical flux F_lambda is conventionally in erg/s/cm²/Å.
+# Constants are defined in CGS units to prevent unit mismatch.
+PLANCK_CONSTANT_CGS = 6.62607015e-27  # erg·s
+SPEED_OF_LIGHT_CGS = 2.99792458e10    # cm/s
+ARCSEC_PER_RADIAN = 206264.80624709636 # 180 * 3600 / pi
 
 # ==========================================
-# 1. Spatial & Geometry (空間與幾何光學)
+# Stage 2: Physical & Environmental Conversions
 # ==========================================
 
-def calc_pixel_scale(focal_length_m: float, pixel_size_micron: float) -> float:
+def calculate_airmass(zenith_angle_deg: Numeric) -> Numeric:
     """
-    Calculate the pixel scale of the instrument in arcseconds per pixel.
-    (Assumes inputs are strictly positive and validated by the caller)
+    Calculate airmass using the secant approximation of the zenith angle.
 
-    Args:
-        focal_length_m (float): The effective focal length of the telescope in meters.
-        pixel_size_micron (float): The physical size of a single pixel on the CCD in microns.
+    Corresponds to ATBD Section 4.1.1: X ≈ sec(z) = 1 / cos(z).
 
-    Returns:
-        float: The pixel scale in arcseconds per pixel (arcsec/pix).
+    Parameters
+    ----------
+    zenith_angle_deg : Numeric
+        Zenith angle in degrees [deg].
+
+    Returns
+    -------
+    Numeric
+        Airmass (X) [dimensionless].
     """
-    pixel_size_m = pixel_size_micron * 1e-6
-    scale_radians = pixel_size_m / focal_length_m
-    scale_arcsec = scale_radians * (180.0 / constants.pi) * 3600.0
-    
-    return scale_arcsec
+    zenith_rad = np.radians(zenith_angle_deg)
+    return 1.0 / np.cos(zenith_rad)
 
-def calc_telescope_area(diameter_m: float, obstruction_ratio: float = 0.0) -> float:
+def calculate_effective_area(
+    primary_mirror_diameter: Numeric, 
+    secondary_mirror_diameter: Numeric
+) -> Numeric:
     """
-    Calculate the effective light-gathering area of the telescope's primary mirror.
-    (Assumes diameter is strictly positive and validated by the caller)
+    Calculate the effective collecting area accounting for secondary mirror obscuration.
 
-    Args:
-        diameter_m (float): The diameter of the primary mirror in meters.
-        obstruction_ratio (float): The linear ratio of the central obstruction 
-            (diameter of secondary mirror / diameter of primary mirror). 
-            Defaults to 0.0 (no obstruction).
+    Corresponds to ATBD Section 4.1.3: A_eff = (π/4) * (D_pri² - D_sec²).
 
-    Returns:
-        float: The effective gathering area in square meters (m^2).
+    Parameters
+    ----------
+    primary_mirror_diameter : Numeric
+        Primary mirror diameter (D_pri) [m].
+    secondary_mirror_diameter : Numeric
+        Secondary mirror diameter (D_sec) [m].
+
+    Returns
+    -------
+    Numeric
+        Effective collecting area (A_eff) [m²].
     """
-    radius = diameter_m / 2.0
-    total_area = np.pi * (radius**2)
-    
-    effective_area = total_area * (1.0 - obstruction_ratio**2)
-    
-    return effective_area
+    return (np.pi / 4.0) * (primary_mirror_diameter**2 - secondary_mirror_diameter**2)
 
-def calc_aperture_area(aperture_radius_arcsec: float) -> float:
+def calculate_photon_energy(central_wavelength_nm: Numeric) -> Numeric:
     """
-    Calculate the area of the software aperture on the celestial sphere.
-    (Assumes radius is non-negative and validated by the caller)
+    Calculate the energy of a single photon at the central wavelength.
 
-    Args:
-        aperture_radius_arcsec (float): The radius of the measurement aperture in arcseconds.
+    Corresponds to ATBD Section 4.1.3: E_p = (h * c) / lambda_c.
 
-    Returns:
-        float: The area of the aperture in square arcseconds.
+    Parameters
+    ----------
+    central_wavelength_nm : Numeric
+        Central wavelength (lambda_c) [nm].
+
+    Returns
+    -------
+    Numeric
+        Photon energy (E_p) [erg].
     """
-    area = constants.pi * (aperture_radius_arcsec ** 2)
-    return area
+    # Convert wavelength from nm to cm (1 nm = 1e-7 cm)
+    wavelength_cm = central_wavelength_nm * 1e-7
+    return (PLANCK_CONSTANT_CGS * SPEED_OF_LIGHT_CGS) / wavelength_cm
 
-def calc_npix_aperture(aperture_area_sq_arcsec: float, pixel_scale_arcsec_per_pix: float) -> float:
+def calculate_total_throughput(
+    optical_throughput: Numeric,
+    filter_transmission: Numeric,
+    quantum_efficiency: Numeric
+) -> Numeric:
     """
-    Calculate the number of pixels covered by the software aperture on the CCD.
-    (Assumes inputs are valid, non-negative, and pixel_scale > 0)
+    Calculate total system optical efficiency.
 
-    Args:
-        aperture_area_sq_arcsec (float): The area of the aperture in square arcseconds.
-        pixel_scale_arcsec_per_pix (float): The pixel scale in arcseconds per pixel.
+    Corresponds to ATBD Section 4.1.3: T_sys = R_opt * T_filt * QE.
 
-    Returns:
-        float: The number of pixels enclosed by the aperture.
+    Parameters
+    ----------
+    optical_throughput : Numeric
+        Optical system throughput (R_opt) [dimensionless, 0.0-1.0].
+    filter_transmission : Numeric
+        Filter transmission efficiency (T_filt) [dimensionless, 0.0-1.0].
+    quantum_efficiency : Numeric
+        Detector quantum efficiency (QE) [dimensionless, 0.0-1.0].
+
+    Returns
+    -------
+    Numeric
+        Total throughput (T_sys) [dimensionless, 0.0-1.0].
     """
-    pixel_area_sq_arcsec = pixel_scale_arcsec_per_pix ** 2
-    n_pixels = aperture_area_sq_arcsec / pixel_area_sq_arcsec
-    
-    return n_pixels
+    return optical_throughput * filter_transmission * quantum_efficiency
 
-# ==========================================
-# 2. Photon & Energy (光子與能量轉換)
-# ==========================================
-
-def calc_photon_energy(wavelength_m: float) -> float:
+def calculate_pixel_scale(
+    pixel_pitch_um: Numeric, 
+    focal_length_m: Numeric
+) -> Numeric:
     """
-    Calculate the energy of a single photon at a given wavelength.
+    Calculate the spatial resolution per pixel (pixel scale).
 
-    Args:
-        wavelength_m (float): The wavelength of the photon in meters.
+    Corresponds to ATBD Section 4.1.3: S_pixel = 206265 * (p_pixel / f_sys).
 
-    Returns:
-        float: The energy of the photon in Joules.
+    Parameters
+    ----------
+    pixel_pitch_um : Numeric
+        Physical pixel pitch (p_pixel) [µm].
+    focal_length_m : Numeric
+        Telescope focal length (f_sys) [m].
+
+    Returns
+    -------
+    Numeric
+        Pixel scale (S_pixel) [arcsec/pix].
     """
-    # h = Planck constant, c = Speed of light
-    return (constants.h * constants.c) / wavelength_m
+    # Convert pixel_pitch from µm to m (1 µm = 1e-6 m)
+    pixel_pitch_m = pixel_pitch_um * 1e-6
+    return ARCSEC_PER_RADIAN * (pixel_pitch_m / focal_length_m)
 
-def calc_throughput(
-    m1_reflectance: float, 
-    m2_reflectance: float, 
-    filter_transmittance: float, 
-    glass_transmittance: float, 
-    quantum_efficiency: float,
-    additional_throughput: float,
-) -> float:
+def calculate_total_fwhm(
+    seeing_fwhm: Numeric,
+    diffraction_fwhm: Numeric,
+    optical_fwhm: Numeric,
+    tracking_fwhm: Numeric
+) -> Numeric:
     """
-    Calculate the total system throughput by multiplying various efficiency factors.
-    (Assumes all inputs are ratios between 0.0 and 1.0)
+    Calculate the total spatial spreading (FWHM_tot) by quadrature sum.
 
-    Args:
-        m1_reflectance (float): Reflectance of the primary mirror.
-        m2_reflectance (float): Reflectance of the secondary mirror.
-        filter_transmittance (float): Peak transmittance of the filter.
-        glass_transmittance (float): Transmittance of the camera glass window.
-        quantum_efficiency (float): Quantum efficiency (QE) of the CCD at the given band.
-        additional_throughput (float): Additional throughput due to other factors like lens imperfections or atmospheric conditions
+    Corresponds to ATBD Section 4.1.2: FWHM_tot = sqrt(See² + Dif² + Opt² + Trk²).
 
-    Returns:
-        float: The total system throughput as a ratio (0.0 to 1.0).
+    Parameters
+    ----------
+    seeing_fwhm : Numeric
+        Atmospheric seeing FWHM [arcsec].
+    diffraction_fwhm : Numeric
+        Diffraction limit FWHM [arcsec].
+    optical_fwhm : Numeric
+        Optical aberrations FWHM [arcsec].
+    tracking_fwhm : Numeric
+        Telescope tracking error FWHM [arcsec].
+
+    Returns
+    -------
+    Numeric
+        Total FWHM (FWHM_tot) [arcsec].
     """
-    # Simply the product of all efficiency stages
-    return m1_reflectance * m2_reflectance * filter_transmittance * glass_transmittance * quantum_efficiency * additional_throughput
-
-def calc_flux_in_aperture(aperture_radius_arcsec: float, seeing_arcsec: float) -> float:
-    """
-    Calculate the fraction of source flux enclosed within a software aperture, 
-    assuming a 2D Gaussian Point Spread Function (PSF).
-    (Assumes inputs are positive. Uses a numerical integration approximation)
-
-    Args:
-        aperture_radius_arcsec (float): The radius of the measurement aperture in arcseconds.
-        seeing_arcsec (float): The FWHM of the atmospheric seeing in arcseconds.
-
-    Returns:
-        float: The enclosed flux fraction (0.0 to 1.0).
-    """
-    # sigma = FWHM / sqrt(8 * ln(2))
-    sigma = seeing_arcsec / (2.0 * np.sqrt(2.0 * np.log(2.0)))
-    fraction = 1.0 - np.exp(-(aperture_radius_arcsec**2) / (2.0 * sigma**2))
-    
-    return fraction
-
-# ==========================================
-# 3. Rates: e-/sec (每秒訊號計數率)
-# ==========================================
-
-def calc_source_count_rate(
-    zero_mag_flux: float,
-    source_mag: float,
-    extinction: float,
-    airmass: float,
-    filter_width_m: float,
-    telescope_area_m2: float,
-    photon_energy_j: float,
-    total_throughput: float,
-    enclosed_flux_fraction: float
-) -> float:
-    """
-    Calculate the source count rate in electrons per second.
-    (Assumes all inputs are pre-validated positive floats)
-
-    Args:
-        zero_mag_flux (float): Flux of a 0-mag star (W m^-2 m^-1).
-        source_mag (float): Magnitude of the target source.
-        extinction (float): Atmospheric extinction coefficient (mag/airmass).
-        airmass (float): Airmass of the observation.
-        filter_width_m (float): Full-width of the filter passband in meters.
-        telescope_area_m2 (float): Effective area of the telescope in m^2.
-        photon_energy_j (float): Energy of a single photon in Joules.
-        total_throughput (float): Combined efficiency of the system.
-        enclosed_flux_fraction (float): Fraction of flux within the aperture.
-
-    Returns:
-        float: Source count rate (e-/sec).
-    """
-    # 1. Calculate the flux of the source at the top of the atmosphere, 
-    # then apply extinction
-    flux = zero_mag_flux * 10**(-0.4 * (source_mag + extinction * airmass))
-    
-    # 2. Total power (Watts) received by the telescope within the filter band
-    total_power = flux * filter_width_m * telescope_area_m2
-    
-    # 3. Convert power to photon rate, apply throughput and aperture fraction
-    source_count_rate = (total_power / photon_energy_j) * total_throughput * enclosed_flux_fraction
-    
-    return source_count_rate
-
-def calc_sky_count_rate(
-    zero_mag_flux: float,
-    sky_brightness: float,
-    filter_width_m: float,
-    telescope_area_m2: float,
-    pixel_scale_arcsec_per_pix: float,
-    photon_energy_j: float,
-    total_throughput: float
-) -> float:
-    """
-    Calculate the sky background count rate per pixel in electrons per second.
-    (Assumes all inputs are pre-validated positive floats)
-
-    Args:
-        zero_mag_flux (float): Flux of a 0-mag star (W m^-2 m^-1).
-        sky_brightness (float): Sky background brightness (mag/arcsec^2).
-        filter_width_m (float): Full-width of the filter passband in meters.
-        telescope_area_m2 (float): Effective area of the telescope in m^2.
-        pixel_scale_arcsec_per_pix (float): Pixel scale (arcsec/pix).
-        photon_energy_j (float): Energy of a single photon in Joules.
-        total_throughput (float): Combined efficiency of the system.
-
-    Returns:
-        float: Sky count rate per pixel (e-/sec/pix).
-    """
-    # 1. Calculate sky flux per square arcsecond
-    sky_flux_per_arcsec2 = zero_mag_flux * 10**(-0.4 * sky_brightness)
-    
-    # 2. Total power per pixel (Watts/pix)
-    # We multiply by the square of pixel_scale to convert area to per-pixel.
-    power_per_pix = sky_flux_per_arcsec2 * filter_width_m * telescope_area_m2 * (pixel_scale_arcsec_per_pix**2)
-    
-    # 3. Convert power to photon rate and apply throughput[cite: 4, 6]
-    sky_count_rate = (power_per_pix / photon_energy_j) * total_throughput
-    
-    return sky_count_rate
-
-# ==========================================
-# 4. Observation Metrics (觀測指標評估)
-# ==========================================
-
-def calc_total_signal(source_count_rate: float, exposure_time: np.ndarray) -> np.ndarray:
-    """
-    Calculate the total accumulated electrons from the source over a given exposure time.
-
-    Args:
-        source_count_rate (float): Source count rate in e-/sec.
-        exposure_time (float): Exposure time in seconds.
-
-    Returns:
-        float: Total source signal in electrons.
-    """
-    return source_count_rate * exposure_time
-
-def calc_readout_time(
-    npix1: int, 
-    npix2: int, 
-    readout_speed_khz: float, 
-    n_amplifiers: int
-) -> float:
-    """
-    Calculate the time required to read out the CCD image.
-
-    Args:
-        npix1 (int): Number of pixels in the first dimension.
-        npix2 (int): Number of pixels in the second dimension.
-        readout_speed_khz (float): Readout speed in kHz.
-        n_amplifiers (int): Number of amplifiers used for readout.
-
-    Returns:
-        float: Total readout time in seconds.
-    """
-    # Convert sampling rate from kHz to Hz
-    sampling_rate_hz = readout_speed_khz * 1000.0
-    total_pixels = float(npix1 * npix2)
-    
-    # Readout time = total pixels / (sampling rate per amplifier * number of amplifiers)[cite: 4, 6]
-    return total_pixels / sampling_rate_hz / n_amplifiers
-
-def calc_total_observation_time(exposure_time: np.ndarray, readout_time: float) -> np.ndarray:
-    """
-    Calculate the total telescope time required, including exposure and overhead.
-
-    Args:
-        exposure_time (float): The actual exposure/integration time in seconds.
-        readout_time (float): The camera readout overhead in seconds.
-
-    Returns:
-        float: Total observation time in seconds.
-    """
-    return exposure_time + readout_time
-
-def calc_total_noise_and_snr(
-    source_count_rate: float,
-    sky_count_rate: float,
-    dark_count_rate: float,
-    readout_noise: float,
-    n_pix_aperture: float,
-    exposure_time: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Calculate the total noise components and the final signal-to-noise ratio (SNR).
-
-    Args:
-        source_count_rate (float): Source count rate in e-/sec.
-        sky_count_rate (float): Sky background count rate in e-/sec/pix.
-        dark_count_rate (float): Dark current count rate in e-/sec/pix.
-        readout_noise (float): Readout noise in e-/pix.
-        n_pix_aperture (float): Number of pixels within the aperture.
-        exposure_time (float): Exposure time in seconds.
-
-    Returns:
-        tuple[float, float]: A tuple containing (total_noise, snr).
-    """
-    signal = source_count_rate * exposure_time
-    
-    # Variance = Signal + Npix * (SkySignal + DarkSignal + ReadoutNoise^2)
-    variance = (
-        signal + 
-        n_pix_aperture * (
-            (sky_count_rate * exposure_time) + 
-            (dark_count_rate * exposure_time) + 
-            (readout_noise ** 2)
-        )
+    return np.sqrt(
+        seeing_fwhm**2 + diffraction_fwhm**2 + optical_fwhm**2 + tracking_fwhm**2
     )
-    total_noise = np.sqrt(variance)
-    snr = signal / total_noise
-    
-    return total_noise, snr
 
-def calc_exposure_time(
-    source_count_rate: float,
-    sky_count_rate: float,
-    dark_count_rate: float,
-    readout_noise: float,
-    target_snr: np.ndarray,
-    n_pix_aperture: float
-) -> np.ndarray:
+def calculate_aperture_geometry(
+    aperture_factor: Numeric,
+    total_fwhm: Numeric,
+    pixel_scale: Numeric
+) -> tuple[Numeric, Numeric]:
     """
-    Reverse-calculate the required exposure time to achieve a target SNR 
-    by solving a quadratic equation.
+    Calculate the number of pixels in the aperture and the enclosed flux fraction.
 
-    Args:
-        source_count_rate (float): Source count rate in e-/sec.
-        sky_count_rate (float): Sky background count rate in e-/sec/pix.
-        dark_count_rate (float): Dark current count rate in e-/sec/pix.
-        readout_noise (float): Readout noise in e-/pix.
-        target_snr (float): Requested signal-to-noise ratio.
-        n_pix_aperture (float): Number of pixels within the aperture.
+    Corresponds to ATBD Section 4.2.1:
+    N_pix = π * (k_ap * FWHM_tot)² / S_pixel²
+    f_enc = 1 - 2^(-4 * k_ap²)
 
-    Returns:
-        float: Required exposure time in seconds.
+    Parameters
+    ----------
+    aperture_factor : Numeric
+        Photometric aperture multiplier factor (k_ap, default 1.5) [dimensionless].
+    total_fwhm : Numeric
+        Total combined FWHM (FWHM_tot) [arcsec].
+    pixel_scale : Numeric
+        Pixel scale (S_pixel) [arcsec/pix].
+
+    Returns
+    -------
+    tuple[Numeric, Numeric]
+        (num_pixels_aperture, enclosed_flux_fraction) -> (N_pix [count], f_enc [dimensionless]).
     """
-    # Coefficients for the quadratic equation: a*t^2 - b*t + c = 0
-    a = source_count_rate ** 2
-    b = (target_snr ** 2) * (source_count_rate + n_pix_aperture * (sky_count_rate + dark_count_rate))
-    c = - (target_snr ** 2) * (readout_noise ** 2) * n_pix_aperture
+    aperture_radius_arcsec = aperture_factor * total_fwhm
+    num_pixels = (np.pi * (aperture_radius_arcsec**2)) / (pixel_scale**2)
+    enclosed_flux = 1.0 - (2.0 ** (-4.0 * (aperture_factor**2)))
     
-    # Solve for t using the positive root of the quadratic formula[cite: 4, 6, 7]
-    exposure_time = (b + np.sqrt(b**2 - 4 * a * c)) / (2 * a)
-    
-    return exposure_time
+    return num_pixels, enclosed_flux
 
+def convert_vega_to_wavelength_flux(
+    target_mag: Numeric, 
+    zero_point_flux: Numeric
+) -> Numeric:
+    """
+    Convert Vega magnitude to Top-of-Atmosphere wavelength flux density (F_lambda).
+
+    Corresponds to ATBD Section 4.1.4: F_lambda = F_zp * 10^(-0.4 * m_target).
+    """
+    return zero_point_flux * (10.0 ** (-0.4 * target_mag))
+
+
+def convert_ab_to_wavelength_flux(
+    ab_mag: Numeric, 
+    central_wavelength_nm: Numeric
+) -> Numeric:
+    """
+    Convert AB magnitude to Top-of-Atmosphere wavelength flux density (F_lambda).
+
+    Corresponds to ATBD Section 4.1.4:
+    F_nu = 3631 * 10^(-0.4 * m_AB) [Jy]
+    F_lambda = F_nu * (c / lambda_c²) [erg/s/cm²/Å]
+    """
+    # 1 Jy = 1e-23 erg/s/cm²/Hz
+    f_nu_jy = 3631.0 * (10.0 ** (-0.4 * ab_mag))
+    f_nu_cgs = f_nu_jy * 1e-23  # erg/s/cm²/Hz
+    
+    # Convert wavelength from nm to Ångström (1 nm = 10 Å)
+    wavelength_angstrom = central_wavelength_nm * 10.0
+    
+    # Speed of light in Å/s (1 cm = 1e8 Å)
+    c_angstrom = SPEED_OF_LIGHT_CGS * 1e8
+    
+    # F_lambda = F_nu * (c / lambda²)
+    return f_nu_cgs * (c_angstrom / (wavelength_angstrom**2))
+
+# ==========================================
+# Stage 3: Photoelectron Count Rates
+# ==========================================
+
+def _calculate_base_electron_rate(
+    f_lambda: Numeric,
+    extinction_coeff: Numeric,
+    airmass: Numeric,
+    filter_bandwidth: Numeric,
+    effective_area: Numeric,
+    photon_energy: Numeric,
+    total_throughput: Numeric
+) -> Numeric:
+    """
+    (Private) Calculate the base photoelectron generation rate per unit of spatial distribution.
+
+    Corresponds to ATBD Section 4.2.2.
+    It applies atmospheric extinction to the Top-of-Atmosphere (TOA) flux and 
+    converts the arriving energy into photoelectrons using system efficiencies.
+
+    Parameters
+    ----------
+    f_lambda : Numeric
+        TOA wavelength flux density [erg/s/cm²/Å].
+    extinction_coeff : Numeric
+        Atmospheric attenuation per unit airmass [mag/airmass].
+    airmass : Numeric
+        Approximated secant of the zenith angle [dimensionless].
+    filter_bandwidth : Numeric
+        Effective spectral bandwidth [nm].
+    effective_area : Numeric
+        Effective collecting area of the telescope [m²].
+    photon_energy : Numeric
+        Energy of a single photon at central wavelength [erg].
+    total_throughput : Numeric
+        Combined system optical efficiency [dimensionless, 0.0-1.0].
+
+    Returns
+    -------
+    Numeric
+        Base photoelectron generation rate before geometric scaling.
+    """
+    # Calculate atmospheric extinction magnitude (k_ext * X)
+    extinction_mag = extinction_coeff * airmass
+    
+    # Attenuate TOA flux through the atmosphere
+    arriving_flux = f_lambda * (10.0 ** (-0.4 * extinction_mag))
+    
+    # Convert attenuated flux to electron generation rate
+    # Note: 1 m² = 10^4 cm², so if f_lambda is in cm², ensure effective_area unit 
+    # conversions are handled upstream in calculator.py if necessary.
+    # Assuming the conversion factor is handled or effective_area is provided in cm².
+    # Wait, in ATBD, F_lambda is per cm² and A_eff is in m². 
+    # Let's apply the 10^4 conversion here to ensure pure physics consistency.
+    effective_area_cm2 = effective_area * 1e4 
+    
+    base_rate = arriving_flux * filter_bandwidth * effective_area_cm2 * (1.0 / photon_energy) * total_throughput
+    
+    return base_rate
+
+def calculate_point_source_rate(
+    f_lambda_total: Numeric,
+    extinction_coeff: Numeric,
+    airmass: Numeric,
+    filter_bandwidth: Numeric,
+    effective_area: Numeric,
+    photon_energy: Numeric,
+    total_throughput: Numeric,
+    enclosed_flux_fraction: Numeric
+) -> Numeric:
+    """
+    Calculate the photoelectron count rate for a point source target.
+
+    Corresponds to ATBD Section 4.2.2 (A). 
+    For point sources, f_lambda represents the total flux. 
+    The base rate is scaled by the dimensionless enclosed flux fraction (f_enc).
+    """
+    base_rate = _calculate_base_electron_rate(
+        f_lambda_total, extinction_coeff, airmass, filter_bandwidth, 
+        effective_area, photon_energy, total_throughput
+    )
+    return base_rate * enclosed_flux_fraction
+
+def calculate_extended_source_rate(
+    f_lambda_surface: Numeric,
+    extinction_coeff: Numeric,
+    airmass: Numeric,
+    filter_bandwidth: Numeric,
+    effective_area: Numeric,
+    photon_energy: Numeric,
+    total_throughput: Numeric,
+    num_pixels_aperture: Numeric,
+    pixel_scale: Numeric
+) -> Numeric:
+    """
+    Calculate the photoelectron count rate for an extended source target.
+
+    Corresponds to ATBD Section 4.2.2 (B). 
+    For extended sources, f_lambda represents surface flux density (per arcsec²). 
+    The base rate is scaled by the total aperture area in arcsec².
+    """
+    base_rate = _calculate_base_electron_rate(
+        f_lambda_surface, extinction_coeff, airmass, filter_bandwidth, 
+        effective_area, photon_energy, total_throughput
+    )
+    aperture_area = num_pixels_aperture * (pixel_scale ** 2.0)
+    return base_rate * aperture_area
+
+def calculate_sky_background_rate(
+    f_lambda_sky: Numeric,
+    extinction_coeff: Numeric,
+    airmass: Numeric,
+    filter_bandwidth: Numeric,
+    effective_area: Numeric,
+    photon_energy: Numeric,
+    total_throughput: Numeric,
+    pixel_scale: Numeric
+) -> Numeric:
+    """
+    Calculate the photoelectron count rate generated by the sky background per pixel.
+
+    Corresponds to ATBD Section 4.2.2 (C). 
+    The sky brightness is treated as a surface flux density, scaled by the area of a single pixel.
+    """
+    base_rate = _calculate_base_electron_rate(
+        f_lambda_sky, extinction_coeff, airmass, filter_bandwidth, 
+        effective_area, photon_energy, total_throughput
+    )
+    pixel_area = pixel_scale ** 2.0
+    return base_rate * pixel_area
+
+def calculate_peak_pixel_rate(
+    source_count_rate: Numeric,
+    total_fwhm: Numeric,
+    pixel_scale: Numeric
+) -> Numeric:
+    """
+    Calculate the peak photoelectron count rate hitting the central pixel.
+
+    This function isolates the peak flux hitting a single pixel based on a 
+    standard 2D Gaussian Point Spread Function (PSF) geometry. 
+    It is required for evaluating the sensor saturation time limit (ATBD Section 4.3.3).
+
+    Parameters
+    ----------
+    source_count_rate : Numeric
+        Total detected photoelectron count rate from the target [e-/s].
+    total_fwhm : Numeric
+        Total spatial spreading FWHM [arcsec].
+    pixel_scale : Numeric
+        Spatial resolution per pixel [arcsec/pix].
+
+    Returns
+    -------
+    Numeric
+        Peak photoelectron count rate on the central pixel [e-/s/pix].
+    """
+    # For a Gaussian PSF, FWHM = 2 * sqrt(2 * ln(2)) * sigma
+    # The fraction of total flux falling into a central pixel (approximated for small pixels)
+    # is (S_pixel^2) / (2 * pi * sigma^2).
+    
+    sigma_squared = (total_fwhm ** 2.0) / (8.0 * np.log(2.0))
+    peak_fraction = (pixel_scale ** 2.0) / (2.0 * np.pi * sigma_squared)
+    
+    return source_count_rate * peak_fraction
+
+# ==========================================
+# Stage 4: Final Output Metrics
+# ==========================================
+
+def calculate_single_snr(
+    source_count_rate: Numeric,
+    sky_count_rate: Numeric,
+    dark_current_rate: Numeric,
+    readout_noise: Numeric,
+    num_pixels_aperture: Numeric,
+    single_exp_time: Numeric
+) -> Numeric:
+    """
+    Calculate the Signal-to-Noise Ratio (SNR) for a single exposure frame.
+
+    Corresponds to ATBD Section 4.3.1.
+    Calculates the signal from the source against the noise contributions from 
+    the source itself (Poisson noise), sky background, dark current, and readout noise.
+
+    Parameters
+    ----------
+    source_count_rate : Numeric
+        Detected photoelectron count rate from the target [e-/s].
+    sky_count_rate : Numeric
+        Background photoelectron count rate per pixel [e-/s/pix].
+    dark_current_rate : Numeric
+        Thermal electron generation rate per pixel [e-/s/pix].
+    readout_noise : Numeric
+        Electronic noise introduced during readout [e-/pix].
+    num_pixels_aperture : Numeric
+        Number of pixels in the photometric aperture [count].
+    single_exp_time : Numeric
+        Integration time for the single exposure [s].
+
+    Returns
+    -------
+    Numeric
+        Single exposure SNR [dimensionless].
+    """
+    # Signal = Source rate * time
+    signal = source_count_rate * single_exp_time
+    
+    # Noise Variance Components
+    source_variance = source_count_rate * single_exp_time
+    sky_variance = sky_count_rate * single_exp_time
+    dark_variance = dark_current_rate * single_exp_time
+    readout_variance = readout_noise ** 2.0
+    
+    # Total Variance = Source + N_pix * (Sky + Dark + RON^2)
+    total_variance = source_variance + num_pixels_aperture * (sky_variance + dark_variance + readout_variance)
+    
+    return signal / np.sqrt(total_variance)
+
+def calculate_total_snr(
+    source_count_rate: Numeric,
+    sky_count_rate: Numeric,
+    dark_current_rate: Numeric,
+    readout_noise: Numeric,
+    num_pixels_aperture: Numeric,
+    single_exp_time: Numeric,
+    total_exp_time: Numeric,
+    num_exposures: Numeric
+) -> Numeric:
+    """
+    Calculate the Total Signal-to-Noise Ratio (SNR) across multiple exposures.
+
+    Corresponds to ATBD Section 4.3.1.
+    Aggregates the signal over the total exposure time and accounts for the 
+    accumulation of read noise across multiple frames.
+
+    Parameters
+    ----------
+    ... (Shared parameters matched with calculate_single_snr) ...
+    total_exp_time : Numeric
+        Cumulative integration time across all frames [s].
+    num_exposures : Numeric
+        Total number of exposure frames [count].
+
+    Returns
+    -------
+    Numeric
+        Total stacked SNR [dimensionless].
+    """
+    signal = source_count_rate * total_exp_time
+    
+    source_variance = source_count_rate * total_exp_time
+    sky_variance_total = sky_count_rate * total_exp_time
+    
+    # Dark current and Readout Noise scale with the number of discrete frames
+    dark_variance_frame = dark_current_rate * single_exp_time
+    readout_variance_frame = readout_noise ** 2.0
+    
+    total_variance = source_variance + (num_pixels_aperture * sky_variance_total) + \
+                     (num_exposures * num_pixels_aperture * (dark_variance_frame + readout_variance_frame))
+                     
+    return signal / np.sqrt(total_variance)
+
+def solve_required_exposures(
+    target_snr: Numeric,
+    single_snr: Numeric
+) -> Numeric:
+    """
+    Calculate the required number of exposures to reach a target SNR.
+
+    Corresponds to ATBD Section 4.3.2.
+    Derived algebraically from the SNR accumulation principles.
+
+    Parameters
+    ----------
+    target_snr : Numeric
+        Goal Signal-to-Noise Ratio [dimensionless].
+    single_snr : Numeric
+        SNR achieved in a single exposure [dimensionless].
+
+    Returns
+    -------
+    Numeric
+        Required number of exposures (exact float). 
+        Note: The scheduling layer should apply np.ceil() if integer frame counts are required.
+    """
+    return (target_snr / single_snr) ** 2.0
+
+def calculate_saturation_time(
+    full_well_capacity: Numeric,
+    peak_pixel_rate: Numeric,
+    sky_count_rate: Numeric,
+    dark_current_rate: Numeric
+) -> Numeric:
+    """
+    Calculate the time limit before a single pixel reaches its Full Well Capacity.
+
+    Corresponds to ATBD Section 4.3.3.
+    Evaluates the combined flux of the target peak, sky background, and dark current.
+
+    Parameters
+    ----------
+    full_well_capacity : Numeric
+        Maximum electron capacity per pixel before saturation [e-].
+    peak_pixel_rate : Numeric
+        Peak photoelectron count rate on the central pixel [e-/s/pix].
+    sky_count_rate : Numeric
+        Background photoelectron count rate per pixel [e-/s/pix].
+    dark_current_rate : Numeric
+        Thermal electron generation rate per pixel [e-/s/pix].
+
+    Returns
+    -------
+    Numeric
+        Saturation time limit (t_sat) [s].
+    """
+    total_pixel_rate = peak_pixel_rate + sky_count_rate + dark_current_rate
+    return full_well_capacity / total_pixel_rate
