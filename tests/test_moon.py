@@ -51,7 +51,8 @@ def test_sky_brightness_moon_below_horizon(monkeypatch):
     result_mag = calculate_sky_brightness(
         target_ra=0.0, target_dec=0.0, 
         obs_time_utc="2026-01-01T00:00:00", 
-        mu_dark=base_dark_sky
+        mu_dark=base_dark_sky,
+        extinction_coeff=0.15,
     )
     
     assert result_mag == pytest.approx(base_dark_sky)
@@ -67,7 +68,8 @@ def test_sky_brightness_moon_above_horizon(monkeypatch):
     result_mag = calculate_sky_brightness(
         target_ra=0.0, target_dec=0.0, 
         obs_time_utc="2026-01-01T00:00:00", 
-        mu_dark=base_dark_sky
+        mu_dark=base_dark_sky,
+        extinction_coeff=0.15,
     )
     
     assert result_mag < base_dark_sky
@@ -108,7 +110,8 @@ def test_ephemeris_time_series_vectorization():
     mu_sky_array = calculate_sky_brightness(
         target_ra=10.68, target_dec=41.27, 
         obs_time_utc=time_series, 
-        mu_dark=21.5
+        mu_dark=21.5,
+        extinction_coeff=0.15,
     )
     assert isinstance(mu_sky_array, np.ndarray)
     assert len(mu_sky_array) == 3

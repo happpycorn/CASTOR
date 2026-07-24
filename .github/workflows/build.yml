@@ -2,23 +2,20 @@ name: Build CASTOR-ETC
 
 on:
   push:
-    branches: [ "main" ]  # 當程式碼推送到 main 分支時觸發
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  workflow_dispatch:      # 允許你在 GitHub 網頁上手動點擊按鈕觸發打包
+  workflow_dispatch:      # 保留手動觸發的按鈕
 
 jobs:
-  build:
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    
-    # 策略矩陣：同時開啟 Windows 和 macOS 的虛擬主機
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest]
-
+  # ==========================================
+  # 1. 驗證任務 (只要有 push 或 PR 就會自動跑)
+  # ==========================================
+  test:
+    name: 🧪 驗證與測試 (Ubuntu)
+    runs-on: ubuntu-latest  # 測試用 Ubuntu 跑最快
     steps:
-    - name: 📥 取得程式碼 (Checkout)
+    - name: 📥 取得程式碼
       uses: actions/checkout@v4
 
     - name: ⚡ 安裝並設定 uv
@@ -30,7 +27,7 @@ jobs:
     - name: 🐍 設定 Python 環境
       uses: actions/setup-python@v5
       with:
-        python-version: "3.12" # 若你的專案是用其他版本，請在此修改
+        python-version: "3.12" 
 
     - name: 📦 安裝專案依賴
       run: uv sync
@@ -38,34 +35,77 @@ jobs:
     - name: 🧪 執行自動化測試 (Pytest)
       run: uv run pytest
 
-    - name: 🧹 清除開發套件 (過河拆橋)
+  # ==========================================
+  # 2. Windows 打包任務 (只有手動點擊才會跑)
+  # ==========================================
+  build-windows:
+    name: 🏗️ 打包 Windows 版本
+    needs: test  # 確保測試通過後才開始打包
+    if: github.event_name == 'workflow_dispatch' # 👈 關鍵：只有手動觸發才執行
+    runs-on: windows-latest
+    steps:
+    - name: 📥 取得程式碼
+      uses: actions/checkout@v4
+
+    - name: ⚡ 安裝並設定 uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+
+    - name: 🐍 設定 Python 環境
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: 📦 安裝專案依賴 (過河拆橋)
       run: uv sync --no-dev
 
     - name: 🏗️ 打包執行檔 (Windows)
-      if: matrix.os == 'windows-latest'
-      run: uv run pyinstaller --clean --noconfirm build.spec
-
-    - name: 🏗️ 打包執行檔 (macOS)
-      if: matrix.os == 'macos-latest'
       run: uv run pyinstaller --clean --noconfirm build.spec
 
     - name: 📤 上傳 Windows 產物
-      if: matrix.os == 'windows-latest'
       uses: actions/upload-artifact@v4
       with:
         name: CASTOR-ETC-Windows
         path: dist/CASTOR-ETC.exe
 
+  # ==========================================
+  # 3. macOS 打包任務 (只有手動點擊才會跑)
+  # ==========================================
+  build-macos:
+    name: 🏗️ 打包 macOS 版本
+    needs: test  # 確保測試通過後才開始打包
+    if: github.event_name == 'workflow_dispatch' # 👈 關鍵：只有手動觸發才執行
+    runs-on: macos-latest
+    steps:
+    - name: 📥 取得程式碼
+      uses: actions/checkout@v4
+
+    - name: ⚡ 安裝並設定 uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+
+    - name: 🐍 設定 Python 環境
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: 📦 安裝專案依賴 (過河拆橋)
+      run: uv sync --no-dev
+
+    - name: 🏗️ 打包執行檔 (macOS)
+      run: uv run pyinstaller --clean --noconfirm build.spec
+
     - name: 🗜️ 壓縮 Mac 應用程式
-      if: matrix.os == 'macos-latest'
       run: |
         cd dist
         zip -r CASTOR-ETC-macOS.zip CASTOR-ETC.app
 
     - name: 📤 上傳 macOS 產物
-      if: matrix.os == 'macos-latest'
       uses: actions/upload-artifact@v4
       with:
         name: CASTOR-ETC-macOS
-        # 👇 [修改] 這裡改成直接上傳我們剛剛包好的 zip 檔
         path: dist/CASTOR-ETC-macOS.zip
