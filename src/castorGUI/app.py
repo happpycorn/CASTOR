@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 
+# Setup Python path for local module loading
 current_dir = Path(__file__).resolve().parent
 src_dir = current_dir.parent
 if str(src_dir) not in sys.path:
@@ -13,17 +14,45 @@ import threading
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
-from castor.calculator import CastorCalculator
-from castor.schema import ObservationRequest
+# 導入新的純函數與 Pydantic Schemas
+from castor import schema
+from castor.calculator import run_calculation
+from castor.batch_calculator import run_batch_calculation
 
-app = FastAPI()
-calculator = CastorCalculator()
+app = FastAPI(title="CASTOR API", description="Optical Exposure Time Calculator Engine")
 
-@app.post("/api/calculate")
-def calculate_exposure(request: ObservationRequest):
-    result = calculator.calculate(request)
-    return result
+# ==========================================
+# 1. 單次計算端點 (Single Calculation API)
+# ==========================================
+@app.post("/api/calculate", response_model=schema.ObservationResponse)
+def calculate_exposure(request: schema.ObservationRequest):
+    try:
+        # Pydantic 已經在 request 層把所有無效資料擋掉了
+        result = run_calculation(request)
+        return result
+    except ValueError as e:
+        # 攔截物理公式拋出的邊界錯誤
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
+# ==========================================
+# 2. 批次計算端點 (Batch Calculation API)
+# ==========================================
+@app.post("/api/calculate/batch", response_model=schema.BatchObservationResponse)
+def calculate_batch_exposure(request: schema.BatchObservationRequest):
+    try:
+        # 專門接收帶有時間序列 (TimeSeriesEnvironment) 的請求
+        result = run_batch_calculation(request)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+# ==========================================
+# 3. 取得硬體預設值 (Hardware Presets API)
+# ==========================================
 @app.get("/api/presets")
 def get_presets():
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
@@ -41,6 +70,9 @@ def get_presets():
         
     return presets_data
 
+# ==========================================
+# 4. 前端靜態檔案掛載 (Frontend Mounting)
+# ==========================================
 def get_frontend_path() -> str:
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
         meipass_path = getattr(sys, '_MEIPASS')
@@ -57,6 +89,9 @@ def get_frontend_path() -> str:
 
 app.mount("/", StaticFiles(directory=get_frontend_path(), html=True), name="static")
 
+# ==========================================
+# 5. 桌面應用程式啟動 (Desktop GUI)
+# ==========================================
 def start_server():
     uvicorn.run(app, host="127.0.0.1", port=8000, log_level="error")
 

@@ -13,6 +13,10 @@ __all__ = [
     "krisciunas_schaefer_1991"
 ]
 
+# 光度學單位轉換常數
+# 參考資料：Krisciunas and Schaefer (1991), conversion from foot-candles/sr to nanoLamberts
+KS91_FC_TO_NL_CONVERSION = 1e5
+
 # ==========================================
 # Phase 1: Astronomical & Ephemeris Engine
 # ==========================================
@@ -90,7 +94,9 @@ def krisciunas_schaefer_1991(
     cos_rho2 = np.cos(np.radians(rho)) ** 2.0
     f_rho = 1e5 * (2.28e-5 * (rho ** -2.5) + 2.22e-4 * (10.0 ** (-0.0173 * rho)) + 2.13e-6 * cos_rho2)
     
-    B_moon = f_rho * I_star * (10.0 ** (-0.4 * k_ext_v * X_moon)) * (1.0 - 10.0 ** (-0.4 * k_ext_v * X_target))
+    B_moon_raw = f_rho * I_star * (10.0 ** (-0.4 * k_ext_v * X_moon)) * (1.0 - 10.0 ** (-0.4 * k_ext_v * X_target))
+
+    B_moon = B_moon_raw * KS91_FC_TO_NL_CONVERSION
     
     return B_moon
 
@@ -99,6 +105,7 @@ def calculate_sky_brightness(
     target_dec: float, 
     obs_time_utc: str | list[str],
     mu_dark: float,
+    extinction_coeff: float,
     lon: float = 120.8736,
     lat: float = 23.4700,
     elevation: float = 2862.0
@@ -115,7 +122,7 @@ def calculate_sky_brightness(
         target_ra, target_dec, obs_time_utc, lon, lat, elevation
     )
     
-    B_moon_nl = krisciunas_schaefer_1991(alpha, rho, z_moon, z_target)
+    B_moon_nl = krisciunas_schaefer_1991(alpha, rho, z_moon, z_target, k_ext_v=extinction_coeff)
     B_dark_nl = 34.08 * (10.0 ** (0.4 * (22.5 - mu_dark)))
 
     B_total = B_moon_nl + B_dark_nl

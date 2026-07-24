@@ -68,7 +68,7 @@ def run_calculation(request: schema.ObservationRequest) -> schema.ObservationRes
     alpha, rho, z_moon, z_target = moon.get_moon_and_target_geometry(
         target_ra=tgt.ra,
         target_dec=tgt.dec,
-        obs_time_utc=env.observing_time_utc.isoformat(),
+        obs_time_utc=env.observing_time_utc.strftime('%Y-%m-%dT%H:%M:%S'),
         lon=env.location.longitude_deg,
         lat=env.location.latitude_deg,
         elevation=env.location.elevation_m
@@ -81,8 +81,9 @@ def run_calculation(request: schema.ObservationRequest) -> schema.ObservationRes
     # 算出包含月光的動態天光表面亮度 (mu_sky)
     mu_sky = moon.calculate_sky_brightness(
         target_ra=tgt.ra, target_dec=tgt.dec,
-        obs_time_utc=env.observing_time_utc.isoformat(),
+        obs_time_utc=env.observing_time_utc.strftime('%Y-%m-%dT%H:%M:%S'),
         mu_dark=env.mu_dark,
+        extinction_coeff=env.extinction_coeff,
         lon=env.location.longitude_deg, lat=env.location.latitude_deg,
         elevation=env.location.elevation_m
     )

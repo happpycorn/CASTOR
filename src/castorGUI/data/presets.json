@@ -1,116 +1,82 @@
-{
+  {
   "telescopes": {
     "LOT": {
-      "telescope-diameter_m": 1.0,
-      "telescope-focal_length_m": 8.0,
-      "telescope-m1_reflectance": 0.92,
-      "telescope-m2_reflectance": 0.92,
-      "telescope-glass_transmission": 0.95,
-      "telescope-central_obstruction_linear_ratio": 0.3,
-      "telescope-additional_throughput": 1.0
+      "instrument.telescope.primary_mirror_diameter": 1.0,
+      "instrument.telescope.secondary_mirror_diameter": 0.3,
+      "instrument.telescope.focal_length": 8.0,
+      "instrument.telescope.optical_throughput": 0.804
     },
     "SLT": {
-      "telescope-diameter_m": 0.4,
-      "telescope-focal_length_m": 3.2,
-      "telescope-m1_reflectance": 0.92,
-      "telescope-m2_reflectance": 0.92,
-      "telescope-glass_transmission": 0.95,
-      "telescope-central_obstruction_linear_ratio": 0.3,
-      "telescope-additional_throughput": 1.0
+      "instrument.telescope.primary_mirror_diameter": 0.4,
+      "instrument.telescope.secondary_mirror_diameter": 0.12,
+      "instrument.telescope.focal_length": 3.2,
+      "instrument.telescope.optical_throughput": 0.804
     },
     "VLT": {
-      "telescope-diameter_m": 8.0,
-      "telescope-focal_length_m": 108.9,
-      "telescope-m1_reflectance": 0.91,
-      "telescope-m2_reflectance": 0.91,
-      "telescope-glass_transmission": 0.95,
-      "telescope-central_obstruction_linear_ratio": 0.136,
-      "telescope-additional_throughput": 1.0
+      "instrument.telescope.primary_mirror_diameter": 8.0,
+      "instrument.telescope.secondary_mirror_diameter": 1.088,
+      "instrument.telescope.focal_length": 24.75,
+      "instrument.telescope.optical_throughput": 0.771
     }
   },
   "cameras": {
     "Sophia": {
-      "camera-pixel_size_micron": 15.0,
-      "camera-resolution_x": 2048,
-      "camera-resolution_y": 2048,
-      "camera-read_noise_e": 5.0,
-      "camera-dark_current_e_per_sec": 0.01,
-      "camera-quantum_efficiency": 0.85,
-      "camera-readout_speed_khz": 100.0,
-      "camera-n_amplifiers": 2,
-      "camera-gain": 1.5,
-      "camera-shutter_overhead_sec": 0.0,
-      "camera-full_well_capacity_e": 100000
+      "instrument.camera.pixel_pitch": 15.0,
+      "instrument.camera.quantum_efficiency": 0.85,
+      "instrument.camera.dark_current_rate": 0.01,
+      "instrument.camera.readout_noise": 5.0,
+      "instrument.camera.full_well_capacity": 100000
     },
     "Default_SLT_Cam": {
-      "camera-pixel_size_micron": 9.0,
-      "camera-resolution_x": 4096,
-      "camera-resolution_y": 4096,
-      "camera-read_noise_e": 3.5,
-      "camera-dark_current_e_per_sec": 0.01,
-      "camera-quantum_efficiency": 0.85,
-      "camera-readout_speed_khz": 100.0,
-      "camera-n_amplifiers": 2,
-      "camera-gain": 1.5,
-      "camera-shutter_overhead_sec": 0.0,
-      "camera-full_well_capacity_e": 50000
+      "instrument.camera.pixel_pitch": 9.0,
+      "instrument.camera.quantum_efficiency": 0.85,
+      "instrument.camera.dark_current_rate": 0.01,
+      "instrument.camera.readout_noise": 3.5,
+      "instrument.camera.full_well_capacity": 50000
     },
     "FORS2_MIT_Camera": {
-      "camera-pixel_size_micron": 15.0,
-      "camera-resolution_x": 4096,
-      "camera-resolution_y": 4096,
-      "camera-read_noise_e": 2.9,
-      "camera-dark_current_e_per_sec": 0.00058,
-      "camera-quantum_efficiency": 0.65,
-      "camera-readout_speed_khz": 100.0,
-      "camera-n_amplifiers": 2,
-      "camera-gain": 0.70,
-      "camera-shutter_overhead_sec": 0.25,
-      "camera-full_well_capacity_e": 81918
+      "instrument.camera.pixel_pitch": 15.0,
+      "instrument.camera.quantum_efficiency": 0.781,
+      "instrument.camera.dark_current_rate": 0.000583,
+      "instrument.camera.readout_noise": 3.15,
+      "instrument.camera.full_well_capacity": 80400
     }
   },
   "filters": {
     "Sloan_u": {
-      "filter-central_wavelength_nm": 354.0,
-      "filter-fwhm_nm": 56.0,
-      "filter-peak_transmission": null,
-      "filter-zero_mag_flux": null,
-      "filter-default_extinction": null
+      "instrument.optic_filter.central_wavelength": 354.0,
+      "instrument.optic_filter.filter_bandwidth": 56.0,
+      "instrument.optic_filter.filter_transmission": 0.9
     },
     "Sloan_g": {
-      "filter-central_wavelength_nm": 477.0,
-      "filter-fwhm_nm": 137.0,
-      "filter-peak_transmission": null,
-      "filter-zero_mag_flux": null,
-      "filter-default_extinction": null
+      "instrument.optic_filter.central_wavelength": 477.0,
+      "instrument.optic_filter.filter_bandwidth": 137.0,
+      "instrument.optic_filter.filter_transmission": 0.9
     },
     "Sloan_r": {
-      "filter-central_wavelength_nm": 623.0,
-      "filter-fwhm_nm": 137.0,
-      "filter-peak_transmission": null,
-      "filter-zero_mag_flux": null,
-      "filter-default_extinction": null
+      "instrument.optic_filter.central_wavelength": 623.0,
+      "instrument.optic_filter.filter_bandwidth": 137.0,
+      "instrument.optic_filter.filter_transmission": 0.9
     },
     "Sloan_i": {
-      "filter-central_wavelength_nm": 763.0,
-      "filter-fwhm_nm": 153.0,
-      "filter-peak_transmission": null,
-      "filter-zero_mag_flux": null,
-      "filter-default_extinction": null
+      "instrument.optic_filter.central_wavelength": 763.0,
+      "instrument.optic_filter.filter_bandwidth": 153.0,
+      "instrument.optic_filter.filter_transmission": 0.9
     },
     "Sloan_z": {
-      "filter-central_wavelength_nm": 913.0,
-      "filter-fwhm_nm": 137.0,
-      "filter-peak_transmission": null,
-      "filter-zero_mag_flux": null,
-      "filter-default_extinction": null
+      "instrument.optic_filter.central_wavelength": 913.0,
+      "instrument.optic_filter.filter_bandwidth": 137.0,
+      "instrument.optic_filter.filter_transmission": 0.9
     },
     "FORS2_g_HIGH": {
-      "filter-central_wavelength_nm": 467.0,
-      "filter-fwhm_nm": 160.3,
-      "filter-peak_transmission": 0.85,
-      "filter-zero_mag_flux": null,
-      "filter-default_extinction": null
+      "instrument.optic_filter.central_wavelength": 467.0,
+      "instrument.optic_filter.filter_bandwidth": 160.3,
+      "instrument.optic_filter.filter_transmission": 0.85
+    },
+    "V_HIGH+114": {
+      "instrument.optic_filter.central_wavelength": 550.0,
+      "instrument.optic_filter.filter_bandwidth": 114.0,
+      "instrument.optic_filter.filter_transmission": 0.51
     }
   }
 }

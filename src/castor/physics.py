@@ -296,21 +296,16 @@ def _calculate_base_electron_rate(
     Numeric
         Base photoelectron generation rate before geometric scaling.
     """
-    # Calculate atmospheric extinction magnitude (k_ext * X)
     extinction_mag = extinction_coeff * airmass
-    
-    # Attenuate TOA flux through the atmosphere
     arriving_flux = f_lambda * (10.0 ** (-0.4 * extinction_mag))
     
-    # Convert attenuated flux to electron generation rate
-    # Note: 1 m² = 10^4 cm², so if f_lambda is in cm², ensure effective_area unit 
-    # conversions are handled upstream in calculator.py if necessary.
-    # Assuming the conversion factor is handled or effective_area is provided in cm².
-    # Wait, in ATBD, F_lambda is per cm² and A_eff is in m². 
-    # Let's apply the 10^4 conversion here to ensure pure physics consistency.
+    # Convert effective area from m² to cm²
     effective_area_cm2 = effective_area * 1e4 
     
-    base_rate = arriving_flux * filter_bandwidth * effective_area_cm2 * (1.0 / photon_energy) * total_throughput
+    # Convert filter bandwidth from nm to Ångströms (1 nm = 10 Å)
+    filter_bandwidth_angstrom = filter_bandwidth * 10.0
+    
+    base_rate = arriving_flux * filter_bandwidth_angstrom * effective_area_cm2 * (1.0 / photon_energy) * total_throughput
     
     return base_rate
 
