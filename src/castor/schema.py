@@ -1,385 +1,401 @@
-from pydantic import BaseModel, Field, PositiveFloat, PositiveInt, model_validator
-from typing import Literal, Optional, Union, Annotated
-from datetime import datetime
+from pydantic import BaseModel, Field, PositiveFloat, PositiveInt, AwareDatetime, ConfigDict
+from typing import Literal, Union, Annotated
 
-class TelescopeSchema(BaseModel):
-    """
-    Physical and optical parameters of the telescope gathering system.
-    """
-    diameter_m: PositiveFloat = Field(
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+class TelescopeSchema(StrictModel):
+    primary_mirror_diameter: PositiveFloat = Field(
         ..., 
-        description="Diameter of the primary mirror in meters (m)."
+        description="Diameter of the primary optical aperture in meters. (ATBD: D_pri)"
     )
-    focal_length_m: PositiveFloat = Field(
+    secondary_mirror_diameter: float = Field(
         ..., 
-        description="Effective focal length of the telescope in meters (m)."
+        description="Diameter of the secondary mirror (central obscuration) in meters. (ATBD: D_sec)"
     )
-    m1_reflectance: float = Field(
-        0.92, 
+    focal_length: PositiveFloat = Field(
+        ..., 
+        description="Effective focal length of the telescope system in meters. (ATBD: f_sys)"
+    )
+    optical_throughput: float = Field(
+        ..., 
         ge=0, 
         le=1, 
-        description="Reflectance of the primary mirror (M1)."
-    )
-    m2_reflectance: float = Field(
-        0.92, 
-        ge=0, 
-        le=1, 
-        description="Reflectance of the secondary mirror (M2)."
-    )
-    glass_transmission: float = Field(
-        0.95, 
-        ge=0, 
-        le=1, 
-        description="Transmission rate of any corrective glass or dewar window."
-    )
-    central_obstruction_linear_ratio: float = Field(
-        0.0,
-        ge=0,
-        le=1,
-        description="Linear ratio of the central obstruction (secondary mirror diameter / primary mirror diameter)."
-    )
-    additional_throughput: float = Field(
-        1.0,
-        ge=0,
-        le=1,
-        description="Combined optical transmission efficiency (0.0 to 1.0) of any auxiliary optics not explicitly covered, such as focal reducers, field flatteners, or a tertiary mirror (M3)."
+        description="Transmission/reflection efficiency of the telescope optics, as a dimensionless ratio from 0.0 to 1.0. (ATBD: R_opt)"
     )
 
-class CameraSchema(BaseModel):
-    """
-    Physical and operational parameters of the camera (CCD/CMOS).
-    """
-    # 1. Geometry & Scale
-    pixel_size_micron: PositiveFloat = Field(
+class CameraSchema(StrictModel):
+    pixel_pitch: PositiveFloat = Field(
         ..., 
-        description="Physical size of a single pixel in microns (μm)."
-    )
-    resolution_x: PositiveInt = Field(
-        ..., 
-        description="Number of pixels in the X dimension (width)."
-    )
-    resolution_y: PositiveInt = Field(
-        ..., 
-        description="Number of pixels in the Y dimension (height)."
-    )
-
-    # 2. Noise & Efficiency (Required by calc_total_noise_and_snr)
-    read_noise_e: float = Field(
-        ..., 
-        ge=0, 
-        description="Readout noise in electrons per pixel (e-/pix)."
-    )
-    dark_current_e_per_sec: float = Field(
-        0.1, 
-        ge=0, 
-        description="Dark current rate in electrons per second per pixel (e-/sec/pix)."
+        description="Physical size of a single detector pixel in micrometers (µm). (ATBD: p_pixel)"
     )
     quantum_efficiency: float = Field(
         ..., 
         ge=0, 
         le=1, 
-        description="Quantum efficiency (QE) of the detector at the observed band."
+        description="Fraction of incident photons converted to electrons, as a dimensionless ratio from 0.0 to 1.0. (ATBD: QE)"
     )
-    binning_x: PositiveInt = Field(
-        1,
-        description="Hardware pixel binning factor along the X dimension (width). Combines adjacent pixels to increase signal-to-noise ratio (SNR) at the cost of spatial resolution."
+    dark_current_rate: float = Field(
+        ..., 
+        ge=0, 
+        description="Thermal electron generation rate per pixel in e-/s/pix. (ATBD: R_dark)"
     )
-    binning_y: PositiveInt = Field(
-        1,
-        description="Hardware pixel binning factor along the Y dimension (height). Combines adjacent pixels to increase signal-to-noise ratio (SNR) at the cost of spatial resolution."
+    readout_noise: float = Field(
+        ..., 
+        ge=0, 
+        description="Electronic noise introduced during the readout phase in e-/pix. (ATBD: RON)"
+    )
+    full_well_capacity: PositiveFloat = Field(
+        ..., 
+        description="Maximum electron capacity per pixel before saturation in e-. (ATBD: FWC)"
     )
 
-    # 3. Readout Electronics (Required by calc_readout_time)
-    readout_speed_khz: float = Field(
-        100.0, 
-        gt=0, 
-        description="The sampling rate of the readout electronics in kHz."
-    )
-    n_amplifiers: PositiveInt = Field(
-        1, 
-        description="Number of amplifiers used during the readout process."
-    )
-    gain: float = Field(
-        1.0, 
-        gt=0, 
-        description="Conversion gain from electrons to ADU (e-/ADU)."
-    )
-    shutter_overhead_sec: float = Field(
-        0.0,
-        ge=0,
-        description="Mechanical shutter opening/closing overhead or readout initialization delay in seconds per single exposure. Crucial for total observation time calculation."
-    )
-
-    # 4. Safety & Quality Control (Optional but Recommended)
-    full_well_capacity_e: Optional[PositiveFloat] = Field(
-        None, 
-        description="Maximum electron capacity per pixel before saturation (e-)."
-    )
-
-class FilterSchema(BaseModel):
-    """
-    Characteristics of the optical filter band.
-    """
-    name: str = Field(
+class FilterSchema(StrictModel):
+    central_wavelength: PositiveFloat = Field(
         ..., 
-        description="Name of the filter band (e.g., 'V', 'R', 'I', 'Ha')."
+        description="Central wavelength of the specific filter in nanometers (nm). (ATBD: lambda_c)"
     )
-    central_wavelength_nm: PositiveFloat = Field(
+    filter_bandwidth: PositiveFloat = Field(
         ..., 
-        description="The central wavelength of the filter in nanometers (nm)."
+        description="Effective spectral bandwidth of the chosen filter in nanometers (nm). (ATBD: Delta_lambda)"
     )
-    fwhm_nm: PositiveFloat = Field(
+    filter_transmission: float = Field(
         ..., 
-        description="Full Width at Half Maximum of the filter passband in nanometers (nm)."
-    )
-    peak_transmission: float = Field(
-        0.9, 
         ge=0, 
         le=1, 
-        description="The maximum transmission ratio of the filter (0.0 to 1.0)."
-    )
-    zero_mag_flux: float = Field(
-        ..., 
-        description="The flux of a 0-magnitude star for this band (W m^-2 nm^-1). The engine will automatically convert this to SI units (W m^-2 m^-1)."
-    )
-    default_extinction: float = Field(
-        0.15, 
-        description="Default atmospheric extinction coefficient for this band (mag/airmass)."
+        description="Transmission efficiency of the inserted filter, as a dimensionless ratio from 0.0 to 1.0. (ATBD: T_filt)"
     )
 
-class InstrumentProfile(BaseModel):
-    """
-    The static hardware configuration of the observatory, combining optics, 
-    sensor electronics, and the filter bandpass.
-    """
-    telescope: TelescopeSchema = Field(
-        ...,
-        description="Optical and structural parameters of the telescope assembly (e.g., aperture, focal length, throughput modifiers)."
-    )
-    camera: CameraSchema = Field(
-        ...,
-        description="Electronic and geometric properties of the detector sensor (e.g., pixel size, read noise, quantum efficiency, binning modes)."
-    )
-    optic_filter: FilterSchema = Field(
-        ...,
-        description="Characteristics of the selected optical filter band, defining the wavelength window and zero-magnitude flux reference."
-    )
+class InstrumentProfile(StrictModel):
+    telescope: TelescopeSchema
+    camera: CameraSchema
+    optic_filter: FilterSchema
 
-class BaseTarget(BaseModel):
-    """
-    Shared astrophysical properties for all target types.
-    Handles common parameters like SED models and cosmological modifiers.
-    """
-    sed_type: Literal["flat", "blackbody"] = Field(
-        "flat", 
-        description="Spectral Energy Distribution model. 'flat' assumes constant flux across the band; 'blackbody' uses Planck's law."
-    )
-    temperature_k: Optional[PositiveFloat] = Field(
-        None, 
-        description="Blackbody temperature in Kelvin. Required if sed_type is 'blackbody'."
-    )
-    redshift: float = Field(
-        0.0, 
-        ge=0.0, 
-        description="Cosmological redshift (z) of the target. Default is 0.0 (local)."
-    )
-    ra: tuple[float, float, float] | None = Field(
-        None, 
-        description="Right Ascension in hours, minutes, seconds (RA_h, RA_m, RA_s)."
-    )
-    dec: tuple[float, float, float] | None = Field(
-        None,
-        description="Declination in degrees, arcminutes, arcseconds (Dec_d, Dec_m, Dec_s)."
-    )
+class PointMorphology(StrictModel):
+    type: Literal["point"] = "point"
 
-    @model_validator(mode='after')
-    def validate_sed_configuration(self):
-        """
-        Ensure that temperature is provided when blackbody SED is selected.
-        """
-        if self.sed_type == "blackbody" and self.temperature_k is None:
-            raise ValueError("Field 'temperature_k' must be provided when 'sed_type' is 'blackbody'.")
-        return self
+class ExtendedMorphology(StrictModel):
+    type: Literal["extended"] = "extended"
 
-
-class PointTarget(BaseTarget):
-    """
-    Data contract for point-source celestial objects (e.g., stars, unresolved quasars).
-    """
-    type: Literal["point"] = Field(
-        "point", 
-        description="Target morphology identifier."
-    )
+class VegaMagnitude(StrictModel):
+    type: Literal["vega_mag"] = "vega_mag"
     target_mag: float = Field(
         ..., 
-        description="The apparent magnitude of the point source in the observed band."
+        description="Apparent magnitude of the observation target in the Vega system. (ATBD: m_target)"
     )
-
-class ExtendedTarget(BaseTarget):
-    """
-    Data contract for extended celestial objects (e.g., galaxies, nebulae, comets).
-    """
-    type: Literal["extended"] = Field(
-        "extended", 
-        description="Target morphology identifier."
-    )
-    surface_brightness: float = Field(
+    zero_point_flux: PositiveFloat = Field(
         ..., 
-        description="Surface brightness of the extended source in mag/arcsec^2."
+        description="Reference flux density for a zero-magnitude source in erg/s/cm²/Å. (ATBD: F_zp)"
     )
 
-TargetProfile = Annotated[
-    Union[PointTarget, ExtendedTarget], 
-    Field(discriminator="type")
-]
-
-class ManualEnvironment(BaseModel):
-    """
-    MVP: Manual environmental conditions provided directly by the caller.
-    Future versions can introduce 'DynamicEnvironment' to calculate these 
-    from RA/Dec and timestamps.
-    """
-    type: Literal["manual"] = Field(
-        "manual",
-        description="Environment condition identifier. 'manual' requires direct input of atmospheric parameters."
-    )
-    seeing_fwhm_arcsec: PositiveFloat = Field(
-        1.5,
-        description="Atmospheric seeing Full Width at Half Maximum (FWHM) in arcseconds. Crucial for resolving point source PSF."
-    )
-    airmass: float = Field(
-        1.0,
-        ge=1.0,
-        description="Airmass of the observation (1.0 = Zenith). Determines the path length of light through the atmosphere."
-    )
-    extinction_coeff: Optional[float] = Field(
-        None,
-        description="Atmospheric extinction coefficient (mag/airmass). If None, the engine will fallback to the filter's default extinction."
-    )
-    sky_brightness_mag_arcsec2: float = Field(
-        ...,
-        description="Base dark sky background brightness in magnitude per square arcsecond (mag/arcsec^2) assuming no moonlight."
+class ABMagnitude(StrictModel):
+    type: Literal["ab_mag"] = "ab_mag"
+    target_mag: float = Field(
+        ..., 
+        description="Apparent magnitude of the observation target in the AB system (0 mag = 3631 Jy)."
     )
 
-    observing_time: datetime | None = Field(
-        None,
-        description="UTC timestamp of the observation. Required for dynamic calculations like moon phase and position."
-    )
-    observatory_position: tuple[float, float, float] | None = Field(
-        None,
-        description="Observatory geodetic coordinates as (latitude_deg, longitude_deg, elevation_m). Required for accurate celestial calculations."
+class JanskyFlux(StrictModel):
+    type: Literal["jansky_flux"] = "jansky_flux"
+    flux_value: PositiveFloat = Field(
+        ..., 
+        description="Frequency flux density (F_nu) in Jansky (Jy)."
     )
 
-EnvironmentCondition = ManualEnvironment
+class WavelengthFlux(StrictModel):
+    type: Literal["wavelength_flux"] = "wavelength_flux"
+    flux_value: PositiveFloat = Field(
+        ..., 
+        description="Wavelength flux density (F_lambda) in erg/s/cm²/Å."
+    )
 
-class SingleInput(BaseModel):
-    type: Literal["single"] = "single"
-    value: PositiveFloat
+class FlatSED(StrictModel):
+    type: Literal["flat"] = "flat"
 
-class ArrayInput(BaseModel):
-    type: Literal["array"] = "array"
-    values: list[PositiveFloat]
+class TempSED(StrictModel):
+    type: Literal["Temp"] = "Temp"
 
-InputValue = Annotated[
-    Union[SingleInput, ArrayInput], 
-    Field(discriminator="type")
-]
+class TargetProfile(StrictModel):
+    morphology: Annotated[Union[PointMorphology, ExtendedMorphology], Field(discriminator="type")]
+    brightness: Annotated[
+        Union[VegaMagnitude, ABMagnitude, JanskyFlux, WavelengthFlux], 
+        Field(discriminator="type", description="Brightness definition and zero-point reference.")
+    ]
+    sed: Annotated[Union[FlatSED, TempSED], Field(discriminator="type")]
 
-class SolveForSNR(BaseModel):
-    """
-    Strategy: Provide exposure time to calculate SNR.
-    """
+    ra: float = Field(
+        ..., 
+        ge=0.0, 
+        lt=360.0,
+        description="Right Ascension of the target in decimal degrees (J2000)."
+    )
+    dec: float = Field(
+        ..., 
+        ge=-90.0, 
+        le=90.0,
+        description="Declination of the target in decimal degrees (J2000)."
+    )
+
+class ObservatoryLocation(StrictModel):
+    latitude_deg: float = Field(
+        ..., 
+        ge=-90.0, 
+        le=90.0, 
+        description="Observer's latitude in degrees. Must be between -90.0 and +90.0."
+    )
+    longitude_deg: float = Field(
+        ..., 
+        ge=-180.0, 
+        le=180.0, 
+        description="Observer's longitude in degrees. Must be between -180.0 and +180.0."
+    )
+    elevation_m: float = Field(..., description="Observer's elevation above sea level in meters.")
+
+class EnvironmentCondition(StrictModel):
+    location: ObservatoryLocation = Field(
+        ..., 
+        description="Observer's geographic location."
+    )
+    observing_time_utc: AwareDatetime = Field(
+        ..., 
+        description="Observation timestamp in ISO 8601 UTC format."
+    )
+    
+    mu_dark: float = Field(
+        ..., 
+        description="Intrinsic surface brightness of the moonless night sky in mag/arcsec². (ATBD: mu_dark)"
+    )
+    extinction_coeff: float = Field(
+        ..., 
+        description="Atmospheric attenuation per unit airmass in mag/airmass. (ATBD: k_ext)"
+    )
+    
+    seeing_fwhm: PositiveFloat = Field(
+        ..., 
+        description="Atmospheric seeing FWHM in arcseconds. (ATBD: FWHM_See)"
+    )
+    diffraction_fwhm: PositiveFloat = Field(
+        ..., 
+        description="Diffraction limit FWHM in arcseconds. (ATBD: FWHM_Dif)"
+    )
+    optical_fwhm: PositiveFloat = Field(
+        ..., 
+        description="Optical aberrations FWHM in arcseconds. (ATBD: FWHM_Opt)"
+    )
+    tracking_fwhm: PositiveFloat = Field(
+        ..., 
+        description="Tracking error FWHM in arcseconds. (ATBD: FWHM_Trk)"
+    )
+
+class BaseOptions(StrictModel):
+    aperture_factor: PositiveFloat = Field(
+        ..., # 堅持零預設值，前端必須明確給定 (通常為 1.5)
+        description="Multiplier defining the photometric aperture radius. (ATBD: k_ap)"
+    )
+    single_exp_time: PositiveFloat = Field(
+        ..., 
+        description="Integration time for an individual sub-exposure frame in seconds. (ATBD: t_single)"
+    )
+
+class SolveForSNR(BaseOptions):
     type: Literal["solve_snr"] = "solve_snr"
-    exposure_time: InputValue
+    num_exposures: PositiveInt = Field(
+        ..., 
+        description="Total number of exposure frames. (ATBD: N_exp)"
+    )
 
-class SolveForTime(BaseModel):
-    """
-    Strategy: Provide target SNR to calculate required exposure time.
-    """
+class SolveForTime(BaseOptions):
     type: Literal["solve_time"] = "solve_time"
-    target_snr: InputValue
+    target_snr: PositiveFloat = Field(
+        ..., 
+        description="Goal Signal-to-Noise Ratio to solve for time or exposures. (ATBD: SNR_target)"
+    )
 
 CalculationOptions = Annotated[
     Union[SolveForSNR, SolveForTime], 
-    Field(discriminator="type")
+    Field(
+        discriminator="type", 
+        description="User-configurable settings that dictate the desired constraints and computation modes. (ATBD 3.4)"
+    )
 ]
 
-class ObservationRequest(BaseModel):
-    """
-    The root contract for a CASTOR calculation request.
-    Strictly aggregates the four domain pillars: Instrument, Target, Environment, and Options.
-    """
+class ObservationRequest(StrictModel):
     instrument: InstrumentProfile = Field(
-        ...,
-        description="Static hardware configuration of the observatory (telescope, camera, filter)."
+        ..., 
+        description="Hardware configuration including telescope, camera, and filter specifications. (Ref: ATBD Section 3.1)"
     )
-    
     target: TargetProfile = Field(
-        ...,
-        description="Intrinsic physical properties of the celestial source (polymorphic: point or extended)."
+        ..., 
+        description="Observation target definition, decoupled into spatial coordinates, morphology, SED, and brightness. (Ref: ATBD Section 3.2)"
     )
-    
     environment: EnvironmentCondition = Field(
-        ...,
-        description="Atmospheric and situational context (MVP: manual input of seeing, airmass, etc.)."
+        ..., 
+        description="Environmental parameters including observer location, time, atmospheric conditions, and seeing FWHM. (Ref: ATBD Section 3.3)"
     )
-    
     options: CalculationOptions = Field(
-        ...,
-        description="Software control interface defining the calculation strategy (polymorphic: solve_snr or solve_time)."
+        ..., 
+        description="Mutually exclusive calculation strategies (e.g., solve for SNR given exposures, or solve for time given target SNR). (Ref: ATBD Section 3.4)"
     )
 
-class BaseMetrics(BaseModel):
-    """
-    Secondary diagnostics and physical constants calculated during the run.
-    Contains both scalar constants for the run and array metrics that map 1:1 with the input length.
-    """
-    source_rate_e_sec: float = Field(..., description="Source signal rate (e-/sec).")
-    sky_rate_e_sec_pix: float = Field(..., description="Sky background rate per pixel (e-/sec/pix).")
-    pixel_scale: float = Field(..., description="Spatial resolution in arcseconds per pixel.")
-    readout_time_sec: float = Field(..., description="Fixed mechanical/electronic time to read the sensor.")
+class CoreResult(StrictModel):
+    total_snr: float = Field(
+        ..., 
+        description="Total Signal-to-Noise Ratio aggregated across all exposures. (ATBD: SNR_total) [dimensionless]"
+    )
+    single_snr: float = Field(
+        ..., 
+        description="Signal-to-Noise Ratio for a single exposure frame. (ATBD: SNR_single) [dimensionless]"
+    )
+    required_exposures: int | None = Field(
+        None, 
+        description="Required number of exposures to achieve the target SNR. (ATBD: N_exp_out). Available only in 'solve_time' mode."
+    )
+    saturation_time_limit: float = Field(
+        ..., 
+        description="Time limit before a single pixel reaches its Full Well Capacity. (ATBD: t_sat) [s]"
+    )
 
-    total_noise_e: list[float] = Field(..., description="Total noise in electrons for each calculated point.")
-    is_saturated: list[bool] = Field(..., description="True if the cumulative signal exceeds Full Well Capacity.")
-    total_observation_time_sec: list[float] = Field(..., description="Total elapsed time (Exposure + Readout Overhead) per point.")
+class SignalNoiseBudget(StrictModel):
+    source_count_rate: float = Field(
+        ..., 
+        description="Total detected photoelectron count rate from the target within the aperture. (ATBD: Rate_src) [e-/s]"
+    )
+    sky_count_rate: float = Field(
+        ..., 
+        description="Photoelectron count rate generated by the sky background per pixel. (ATBD: Rate_sky) [e-/s/pix]"
+    )
+    peak_pixel_rate: float = Field(
+        ..., 
+        description="Peak photoelectron count rate hitting the central pixel. (ATBD: Rate_peak) [e-/s/pix]"
+    )
+
+class PhysicalDiagnostics(StrictModel):
+    total_fwhm: float = Field(
+        ..., 
+        description="Total spatial spreading incorporating seeing, diffraction, optical, and tracking errors. (ATBD: FWHM_tot) [arcsec]"
+    )
+    effective_area: float = Field(
+        ..., 
+        description="Effective collecting area of the telescope, accounting for central obscuration. (ATBD: A_eff) [m²]"
+    )
+    pixel_scale: float = Field(
+        ..., 
+        description="Spatial resolution per pixel. (ATBD: S_pix) [arcsec/pix]"
+    )
+    total_throughput: float = Field(
+        ..., 
+        description="Combined efficiency of optics, filter, and detector. (ATBD: T_sys) [dimensionless]"
+    )
+    enclosed_flux_fraction: float = Field(
+        ..., 
+        description="Fraction of target flux enclosed within the photometric aperture. (ATBD: f_enc) [dimensionless]"
+    )
+    num_pixels_aperture: float = Field(
+        ..., 
+        description="Number of pixels enclosed within the photometric aperture. (ATBD: N_pix) [count]"
+    )
+
+class SystemFlags(StrictModel):
+    is_saturated: bool = Field(
+        ..., 
+        description="Boolean flag marked as True if the single exposure time (t_single) exceeds the saturation limit (t_sat)."
+    )
+    warnings: list[str] = Field(
+        default_factory=list,
+        description="List of warning messages for physical boundary violations (e.g., 'Airmass > 2.0: Extinction model may degrade')."
+    )
+
+class ObservationResponse(StrictModel):
+    core: CoreResult = Field(
+        ..., 
+        description="Final observational metrics required for telescope planning. (ATBD Stage 4)"
+    )
+    budget: SignalNoiseBudget = Field(
+        ..., 
+        description="Intermediate photoelectron count rates for source and background. (ATBD Stage 3)"
+    )
+    diagnostics: PhysicalDiagnostics = Field(
+        ..., 
+        description="Physical characteristics and optical efficiencies translated from inputs. (ATBD Stage 2)"
+    )
+    flags: SystemFlags = Field(
+        ..., 
+        description="System safety flags and boundary warnings."
+    )
+
+class TimeSeriesEnvironment(StrictModel):
+    location: ObservatoryLocation = Field(
+        ..., 
+        description="Observer's geographic location."
+    )
+    start_time_utc: AwareDatetime = Field(
+        ..., 
+        description="Observation start timestamp in ISO 8601 UTC format."
+    )
+    end_time_utc: AwareDatetime = Field(
+        ..., 
+        description="Observation end timestamp in ISO 8601 UTC format."
+    )
+    time_step_minutes: PositiveFloat = Field(
+        ..., 
+        description="Time step interval for discrete expansion in minutes."
+    )
     
-    warnings: list[str] = Field(default_factory=list, description="Array of domain-specific warnings (e.g., 'Target too close to horizon').")
-
-
-class SNRResponse(BaseMetrics):
-    """
-    Output contract when the strategy was to solve for SNR.
-    """
-    type: Literal["snr_result"] = Field("snr_result", description="Response type identifier.")
+    mu_dark: float = Field(
+        ..., 
+        description="Intrinsic surface brightness of the moonless night sky in mag/arcsec²."
+    )
+    extinction_coeff: float = Field(
+        ..., 
+        description="Atmospheric attenuation per unit airmass in mag/airmass."
+    )
     
-    calculated_snr: list[float] = Field(
-        ..., 
-        description="The resolved Signal-to-Noise Ratio(s)."
-    )
-    input_exposure_time: list[float] = Field(
-        ..., 
-        description="The original exposure time(s) passed to the engine, normalized to a 1D array."
-    )
+    seeing_fwhm: PositiveFloat = Field(..., description="Atmospheric seeing FWHM in arcseconds.")
+    diffraction_fwhm: PositiveFloat = Field(..., description="Diffraction limit FWHM in arcseconds.")
+    optical_fwhm: PositiveFloat = Field(..., description="Optical aberrations FWHM in arcseconds.")
+    tracking_fwhm: PositiveFloat = Field(..., description="Tracking error FWHM in arcseconds.")
 
-
-class TimeResponse(BaseMetrics):
-    """
-    Output contract when the strategy was to solve for Exposure Time.
-    """
-    type: Literal["time_result"] = Field("time_result", description="Response type identifier.")
-    
-    calculated_exposure_time: list[float] = Field(
+class BatchBaseOptions(StrictModel):
+    aperture_factor: PositiveFloat = Field(
         ..., 
-        description="The resolved required exposure time(s) in seconds."
+        description="Multiplier defining the photometric aperture radius."
     )
-    input_target_snr: list[float] = Field(
+    single_exp_time: PositiveFloat = Field(
         ..., 
-        description="The original target SNR(s) passed to the engine, normalized to a 1D array."
+        description="Integration time for an individual sub-exposure frame in seconds."
     )
 
+class BatchSolveForSNR(BatchBaseOptions):
+    type: Literal["solve_snr"] = "solve_snr"
+    num_exposures: PositiveInt = Field(
+        ..., 
+        description="Total number of exposure frames."
+    )
 
-# --- The Flat Polymorphic Response ---
-CastorResponse = Annotated[
-    Union[SNRResponse, TimeResponse], 
-    Field(discriminator="type")
+class BatchSolveForTime(BatchBaseOptions):
+    type: Literal["solve_time"] = "solve_time"
+    target_snr: PositiveFloat = Field(
+        ..., 
+        description="Goal Signal-to-Noise Ratio to solve for time."
+    )
+
+BatchCalculationOptions = Annotated[
+    Union[BatchSolveForSNR, BatchSolveForTime], 
+    Field(discriminator="type", description="Batch calculation strategies.")
 ]
+
+class BatchObservationRequest(StrictModel):
+    instrument: InstrumentProfile = Field(..., description="Hardware configuration.")
+    target: TargetProfile = Field(..., description="Observation target profile.")
+    environment: TimeSeriesEnvironment = Field(..., description="Time-series environmental conditions.")
+    options: BatchCalculationOptions = Field(..., description="Batch calculation strategies.")
+
+class BatchCoreResult(StrictModel):
+    timestamps_iso: list[str] = Field(..., description="Expanded discrete UTC timestamps.")
+    total_snr: list[float] = Field(..., description="Total SNR array across the time series.")
+    single_snr: list[float] = Field(..., description="Single exposure SNR array.")
+    saturation_time_limit: list[float] = Field(..., description="Saturation time limit array [s].")
+
+class BatchObservationResponse(StrictModel):
+    core: BatchCoreResult = Field(..., description="Vectorized calculation results over time.")
+    flags: SystemFlags = Field(..., description="System safety flags and boundary warnings.")

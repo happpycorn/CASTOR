@@ -1,197 +1,130 @@
 import pytest
-from castor.schema import (
-    TelescopeSchema, 
-    CameraSchema, 
-    FilterSchema, 
-    InstrumentProfile,
-    PointTarget,
-    ManualEnvironment,
-    SolveForSNR,
-    SolveForTime,
-    ArrayInput,
-    ObservationRequest,
-    SNRResponse,
-    TimeResponse
-)
-from castor.calculator import CastorCalculator
+from datetime import datetime, timezone
+
+# 假設你的模組路徑是 castor
+from castor import schema
+from castor.calculator import run_calculation
 
 # ==========================================
-# 1. 定義 Fixtures (測試夾具)
-# ==========================================
-@pytest.fixture
-def lot_telescope():
-    return TelescopeSchema(
-        diameter_m=1.0,
-        focal_length_m=8.0,
-        m1_reflectance=0.9,
-        m2_reflectance=0.9,
-        glass_transmission=0.95,
-        central_obstruction_linear_ratio=0.3,
-        additional_throughput=1
-    )
-
-@pytest.fixture
-def sophia_camera():
-    return CameraSchema(
-        pixel_size_micron=13.5,
-        resolution_x=2048,
-        resolution_y=2048,
-        read_noise_e=5.0,
-        dark_current_e_per_sec=0.001,
-        quantum_efficiency=0.85,
-        readout_speed_khz=100.0,
-        n_amplifiers=2,
-        gain=1.2,
-        full_well_capacity_e=100000.0,
-        binning_x=1,
-        binning_y=1,
-        shutter_overhead_sec=0,
-    )
-
-@pytest.fixture
-def v_band_filter():
-    return FilterSchema(
-        name="V",
-        central_wavelength_nm=550.0,
-        fwhm_nm=89.0,
-        peak_transmission=0.9,
-        zero_mag_flux=3.63e-11,
-        default_extinction=0.15
-    )
-
-@pytest.fixture
-def instrument_profile(lot_telescope, sophia_camera, v_band_filter):
-    """將硬體組態打包成單一 Instrument Profile，簡化後續的 Request 組裝"""
-    return InstrumentProfile(
-        telescope=lot_telescope,
-        camera=sophia_camera,
-        optic_filter=v_band_filter
-    )
-
-@pytest.fixture
-def base_environment():
-    """提供預設的觀測環境參數"""
-    return ManualEnvironment(
-        type="manual",
-        seeing_fwhm_arcsec=1.5,
-        airmass=1.0,
-        extinction_coeff=None,
-        sky_brightness_mag_arcsec2=21.0,
-    )
-
-@pytest.fixture
-def calculator():
-    return CastorCalculator()
-
-# ==========================================
-# 2. 測試案例 (Test Cases)
+# Fixtures: 準備測試用的標準假資料
 # ==========================================
 
-def test_calculator_array_exposure_time(calculator, instrument_profile, base_environment):
-    """測試給定多個曝光時間，是否能正確產出對應長度的 SNR 陣列"""
-    request = ObservationRequest(
-        instrument=instrument_profile,
-        target=PointTarget(
-            type="point",         # 明確指定 discriminator
-            sed_type="flat",      # 預設的光譜分佈
-            temperature_k=None,   # flat 模式下不需要溫度，明確給 None
-            redshift=0.0,         # 預設紅移為 0
-            target_mag=18.0       # 這裡放你原本測試的星等 (18.0, 15.0 或 5.0)
+@pytest.fixture
+def mock_moon(monkeypatch):
+    """
+    攔截 Astropy 的曆書運算，讓測試環境完全獨立且極速。
+    回傳固定的天頂角與月光亮度，確保物理運算不被真實時間干擾。
+    """
+    def mock_geometry(*args, **kwargs):
+        # 回傳: alpha=0(滿月), rho=90, z_moon=45, z_target=30
+        return (0.0, 90.0, 45.0, 30.0)
+        
+    def mock_sky_brightness(*args, **kwargs):
+        return 21.0 # 固定回傳 21.0 星等的天光
+
+    monkeypatch.setattr("castor.moon.get_moon_and_target_geometry", mock_geometry)
+    monkeypatch.setattr("castor.moon.calculate_sky_brightness", mock_sky_brightness)
+
+@pytest.fixture
+def base_request():
+    """建立一個標準的鹿林一米望遠鏡 (LOT) 觀測點源假資料"""
+    return schema.ObservationRequest(
+        instrument=schema.InstrumentProfile(
+            telescope=schema.TelescopeSchema(
+                primary_mirror_diameter=1.0, 
+                secondary_mirror_diameter=0.3, 
+                focal_length=8.0, 
+                optical_throughput=0.8
+            ),
+            camera=schema.CameraSchema(
+                pixel_pitch=13.5, 
+                quantum_efficiency=0.9, 
+                dark_current_rate=0.01, 
+                readout_noise=3.0, 
+                full_well_capacity=100000.0
+            ),
+            optic_filter=schema.FilterSchema(
+                central_wavelength=550.0, # V band 近似
+                filter_bandwidth=100.0, 
+                filter_transmission=0.95
+            )
         ),
-        environment=base_environment,
-        options=SolveForSNR(
-            exposure_time=ArrayInput(values=[10.0, 60.0, 300.0])
-        )
-    )
-    
-    response = calculator.calculate(request)
-    
-    # 確認回傳型別正確
-    assert isinstance(response, SNRResponse)
-    
-    # 驗證輸出長度是否匹配
-    assert len(response.calculated_snr) == 3
-    assert len(response.input_exposure_time) == 3
-    assert len(response.is_saturated) == 3
-    
-    # 驗證 SNR 趨勢 (時間越長，SNR 應該越高)
-    assert response.calculated_snr[0] < response.calculated_snr[1] < response.calculated_snr[2]
-    
-    # 驗證 18 等星拍 300 秒不該過曝
-    assert response.is_saturated[2] is False
-
-
-def test_calculator_target_snr(calculator, instrument_profile, base_environment):
-    """測試給定目標 SNR，是否能反推出曝光時間"""
-    request = ObservationRequest(
-        instrument=instrument_profile,
-        target=PointTarget(
-            type="point",         # 明確指定 discriminator
-            sed_type="flat",      # 預設的光譜分佈
-            temperature_k=None,   # flat 模式下不需要溫度，明確給 None
-            redshift=0.0,         # 預設紅移為 0
-            target_mag=15.0       # 這裡放你原本測試的星等 (18.0, 15.0 或 5.0)
+        target=schema.TargetProfile(
+            morphology=schema.PointMorphology(),
+            brightness=schema.VegaMagnitude(target_mag=15.0, zero_point_flux=3.6e-9),
+            sed=schema.FlatSED(),
+            ra=180.0, 
+            dec=0.0
         ),
-        environment=base_environment,
-        options=SolveForTime(
-            target_snr=ArrayInput(values=[10.0, 50.0])
-        )
-    )
-    
-    response = calculator.calculate(request)
-    
-    # 確認回傳型別正確
-    assert isinstance(response, TimeResponse)
-    
-    assert len(response.calculated_exposure_time) == 2
-    # 要求越高的 SNR，需要的時間應該越長
-    assert response.calculated_exposure_time[0] < response.calculated_exposure_time[1]
-
-
-def test_calculator_saturation_warning(calculator, instrument_profile, base_environment):
-    """測試拍極亮星時，飽和機制是否會正常觸發"""
-    request = ObservationRequest(
-        instrument=instrument_profile,
-            target=PointTarget(
-            type="point",         # 明確指定 discriminator
-            sed_type="flat",      # 預設的光譜分佈
-            temperature_k=None,   # flat 模式下不需要溫度，明確給 None
-            redshift=0.0,         # 預設紅移為 0
-            target_mag=5.0       # 這裡放你原本測試的星等 (18.0, 15.0 或 5.0)
-        ),  # 極亮星 (例如肉眼可見的恆星)
-        environment=base_environment,
-        options=SolveForSNR(
-            exposure_time=ArrayInput(values=[1.0, 300.0])  # 1秒可能還好，300秒一定爆掉
-        )
-    )
-    
-    response = calculator.calculate(request)
-    
-    # 驗證 300 秒那次是否有抓到過曝
-    assert response.is_saturated[1] is True
-    # 驗證是否有產生警告訊息
-    assert len(response.warnings) > 0
-    assert "saturated" in response.warnings[0].lower()
-
-
-def test_pixel_scale_calculation(calculator, instrument_profile, base_environment):
-    """測試純粹的物理常數計算是否符合預期 (確保單位轉換正確)"""
-    request = ObservationRequest(
-        instrument=instrument_profile,
-        target=PointTarget(
-            type="point",         # 明確指定 discriminator
-            sed_type="flat",      # 預設的光譜分佈
-            temperature_k=None,   # flat 模式下不需要溫度，明確給 None
-            redshift=0.0,         # 預設紅移為 0
-            target_mag=18.0       # 這裡放你原本測試的星等 (18.0, 15.0 或 5.0)
+        environment=schema.EnvironmentCondition(
+            location=schema.ObservatoryLocation(
+                latitude_deg=23.47, longitude_deg=120.87, elevation_m=2862.0
+            ),
+            observing_time_utc=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            mu_dark=21.5,
+            extinction_coeff=0.17,
+            seeing_fwhm=1.5, diffraction_fwhm=0.1, optical_fwhm=0.1, tracking_fwhm=0.1
         ),
-        environment=base_environment,
-        options=SolveForSNR(
-            exposure_time=ArrayInput(values=[10.0])
+        # 預設為模式 B：給定目標 SNR，反推需要拍幾張
+        options=schema.SolveForTime(
+            aperture_factor=1.5, single_exp_time=300.0, target_snr=100.0
         )
     )
+
+# ==========================================
+# 測試案例: 裝配線與路由驗證
+# ==========================================
+
+def test_pipeline_point_solve_time(mock_moon, base_request):
+    """
+    測試管線 A：點源目標 (Point) + 反推曝光時間 (SolveForTime)
+    """
+    response = run_calculation(base_request)
     
-    response = calculator.calculate(request)
+    # 1. 確保回傳的是標準合約物件
+    assert isinstance(response, schema.ObservationResponse)
     
-    # 驗證 pixel scale (8m 焦距配 13.5um 像素，大約是 0.348 arcsec/pix)
-    assert 0.34 < response.pixel_scale < 0.35
+    # 2. 確保核心數據不為空 (因為是 SolveForTime 模式，一定有 required_exposures)
+    assert response.core.required_exposures is not None
+    assert response.core.total_snr >= 100.0 # 達標的 SNR 一定大於等於目標 SNR
+    
+    # 3. 確保物理屬性有被正確計算
+    assert response.budget.source_count_rate > 0
+    assert 0.0 < response.diagnostics.enclosed_flux_fraction < 1.0
+
+def test_pipeline_extended_solve_snr(mock_moon, base_request):
+    """
+    測試管線 B：延伸源目標 (Extended) + 正推訊噪比 (SolveForSNR)
+    """
+    # 抽換 request 內的零件：把目標改成延伸源 (例如星系表面亮度)
+    base_request.target.morphology = schema.ExtendedMorphology()
+    # 抽換 request 內的亮度：改為 AB 星等
+    base_request.target.brightness = schema.ABMagnitude(target_mag=18.0)
+    # 抽換 request 內的選項：改為直接給定 5 張曝光，求算出來的 SNR
+    base_request.options = schema.SolveForSNR(
+        aperture_factor=1.5, single_exp_time=300.0, num_exposures=5
+    )
+    
+    response = run_calculation(base_request)
+    
+    # 1. 在 SolveForSNR 模式下，不需要反推曝光次數，所以應該是 None
+    assert response.core.required_exposures is None
+    
+    # 2. 確保算出的 SNR 是一個合法的數字
+    assert response.core.total_snr > 0
+    
+    # 3. 延伸源沒有包絡損失，所以包絡比例在算數上可以照常出，但要確保系統沒當機
+    assert response.budget.source_count_rate > 0
+
+def test_pipeline_saturation_warning(mock_moon, base_request):
+    """
+    測試管線 C：極端亮度導致飽和旗標 (is_saturated) 被正確觸發
+    """
+    # 把星星調得超級亮 (0 等星)，並用超長的單張曝光時間 (1000秒)
+    base_request.target.brightness = schema.VegaMagnitude(target_mag=0.0, zero_point_flux=3.6e-9)
+    base_request.options.single_exp_time = 1000.0
+    
+    response = run_calculation(base_request)
+    
+    # 應該要亮起飽和紅燈
+    assert response.flags.is_saturated is True

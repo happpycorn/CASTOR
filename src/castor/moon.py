@@ -1,98 +1,134 @@
-from skyfield.api import load, wgs84, Star, Timescale
-from skyfield.almanac import fraction_illuminated
 import numpy as np
+from numpy.typing import NDArray
+from typing import TypeAlias, cast, Any
 
-from castor.schema import ObservationRequest
+from astropy.time import Time
+from astropy.coordinates import SkyCoord, EarthLocation, AltAz, get_sun, get_body
+import astropy.units as u
 
-# moon.py
+Numeric: TypeAlias = float | NDArray[np.float64]
 
-def calc_moonlight_background(
-    request: ObservationRequest, 
-) -> float | None:
-    
-    if request.target.ra is None or request.target.dec is None:
-        return None 
-    
-    if request.environment.observatory_position is None:
-        return None 
-    
-    if request.environment.observing_time is None:
-        return None 
-    
-    eph = load('de421.bsp')
-    
-    target_star: Star = Star(
-        ra_hours=request.target.ra,
-        dec_degrees=request.target.dec
-    )
-    
-    obs_position = eph['earth'] + wgs84.latlon(
-        request.environment.observatory_position[0], 
-        request.environment.observatory_position[1], 
-        elevation_m=request.environment.observatory_position[2]
-    )
+__all__ = [
+    "calculate_sky_brightness",
+    "krisciunas_schaefer_1991"
+]
 
-    ts = load.timescale()
-    t = ts.from_datetime(request.environment.observing_time)
+# 光度學單位轉換常數
+# 參考資料：Krisciunas and Schaefer (1991), conversion from foot-candles/sr to nanoLamberts
+KS91_FC_TO_NL_CONVERSION = 1e5
 
-    moon_observation = obs_position.at(t).observe(eph['moon']).apparent()
-    alt, az, distance = moon_observation.altaz()
+# ==========================================
+# Phase 1: Astronomical & Ephemeris Engine
+# ==========================================
 
-    moon_zenith_angle_deg = 90.0 - alt.degrees
-
-    moon_phase = fraction_illuminated(eph, 'moon', t) 
-
-    target_observation = obs_position.at(t).observe(target_star).apparent()
-    moon_target_separation_deg = target_observation.separation_from(moon_observation).degrees
-
-    return calc_moonlight_environment(
-        base_sky_mag=request.environment.sky_brightness_mag_arcsec2,
-        moon_phase=moon_phase,
-        separation_angle_deg=moon_target_separation_deg,
-        moon_zenith_angle_deg=moon_zenith_angle_deg
-    )
-
-def calc_moonlight_environment(
-    base_sky_mag: float,
-    moon_phase: float,
-    separation_angle_deg: float,
-    moon_zenith_angle_deg: float
-) -> float:
+def get_moon_and_target_geometry(
+    target_ra: float, 
+    target_dec: float, 
+    obs_time_utc: str | list[str],
+    lon: float = 120.8736,   # Default to Lulin Observatory
+    lat: float = 23.4700,
+    elevation: float = 2862.0
+) -> tuple[Numeric, Numeric, Numeric, Numeric]:
     """
-    Calculate the effective sky background magnitude considering moonlight scattering.
-    Based on a simplified Krisciunas and Schaefer (1991) model.
-    (Assumes inputs are pre-validated by the caller)
-
-    Args:
-        base_sky_mag (float): The dark sky background brightness (mag/arcsec^2).
-        moon_phase (float): Moon illuminated fraction (0.0 for New Moon, 1.0 for Full Moon).
-        separation_angle_deg (float): Angle between the target and the moon in degrees.
-        moon_zenith_angle_deg (float): Zenith angle of the moon in degrees.
-
-    Returns:
-        float: The degraded (brighter) effective sky background magnitude.
+    Calculate the geometric relationship between the moon and the target using Astropy.
+    
+    Returns
+    -------
+    tuple[float, float, float, float]
+        (alpha_deg, rho_deg, z_moon_deg, z_target_deg)
     """
-    # 1. Constrain separation angle to prevent mathematical divergence 
-    # The KS91 model is generally only valid for rho >= 10 degrees.
-    separation_angle_deg = np.clip(separation_angle_deg, 10.0, 180.0)
-    rho_rad = np.radians(separation_angle_deg)
+    obs_time = Time(obs_time_utc, format="isot", scale="utc")
+    location = EarthLocation(lat=lat*u.deg, lon=lon*u.deg, height=elevation*u.m)
+    altaz_frame = AltAz(obstime=obs_time, location=location)
     
-    # 2. Calculate the core scattering function f(rho)
-    # First term: Rayleigh scattering (air molecules)
-    # Second term: Mie scattering (aerosols/particulates)
-    f_rho = (10**5.36) * (1.06 + np.cos(rho_rad)**2) + 10**(6.15 - separation_angle_deg / 40.0)
+    target_coord = SkyCoord(ra=target_ra*u.deg, dec=target_dec*u.deg, frame="icrs")
+    target_altaz = target_coord.transform_to(altaz_frame)
+
+    sun = get_sun(obs_time)
+    moon = get_body("moon", obs_time, location=location)
     
-    # 3. Calculate the relative moonlight flux factor
-    # Incorporates the illuminated fraction and a simplified atmospheric extinction based on zenith angle
-    moon_flux_factor = f_rho * moon_phase * np.exp(-0.4 * (moon_zenith_angle_deg / 90.0))
+    sun_altaz = sun.transform_to(altaz_frame)
+    moon_altaz = moon.transform_to(altaz_frame)
+
+    rho_deg = cast(Numeric, target_altaz.separation(moon_altaz).deg)
     
-    # 4. Convert magnitudes to linear flux for superposition
-    # The 1e-6 multiplier is an empirical scaling constant for this simplified model
-    moon_sky_flux = moon_flux_factor * 1e-6 
-    base_sky_flux = 10 ** (-0.4 * base_sky_mag)
+    elongation = sun_altaz.separation(moon_altaz)
+    alpha_deg = 180.0 - cast(Numeric, elongation.deg)
     
-    # 5. Calculate total flux and convert back to magnitude
-    total_sky_flux = base_sky_flux + moon_sky_flux
-    dynamic_sky_mag = -2.5 * np.log10(total_sky_flux)
+    z_moon_deg = 90.0 - cast(Numeric, moon_altaz.alt.deg)       # type: ignore
+    z_target_deg = 90.0 - cast(Numeric, target_altaz.alt.deg)   # type: ignore
     
-    return dynamic_sky_mag
+    return alpha_deg, rho_deg, z_moon_deg, z_target_deg
+
+# ==========================================
+# Phase 2: Sky Brightness Modeling
+# ==========================================
+
+def krisciunas_schaefer_1991(
+    alpha_deg: Numeric, 
+    rho_deg: Numeric, 
+    z_moon_deg: Numeric, 
+    z_target_deg: Numeric, 
+    k_ext_v: float = 0.17
+) -> Numeric:
+    """
+    Krisciunas and Schaefer (1991) empirical model for lunar sky brightness.
+    Calculates the scattered lunar flux contribution in the direction of the target.
+    
+    Returns
+    -------
+    Numeric
+        Lunar surface brightness contribution [nanoLamberts].
+    """
+    # Constrain values to physical limits to prevent math domain errors
+    rho = np.clip(rho_deg, 1e-2, 180.0)
+    z_moon = np.clip(z_moon_deg, 0.0, 89.9)
+    z_target = np.clip(z_target_deg, 0.0, 89.9)
+    
+    X_moon = 1.0 / np.cos(np.radians(z_moon))
+    X_target = 1.0 / np.cos(np.radians(z_target))
+    
+    V_m = -12.73 + 0.026 * np.abs(alpha_deg) + (4e-9 * (alpha_deg ** 4.0))
+    I_star = 10.0 ** (-0.4 * (V_m + 16.57))
+    
+    cos_rho2 = np.cos(np.radians(rho)) ** 2.0
+    f_rho = 1e5 * (2.28e-5 * (rho ** -2.5) + 2.22e-4 * (10.0 ** (-0.0173 * rho)) + 2.13e-6 * cos_rho2)
+    
+    B_moon_raw = f_rho * I_star * (10.0 ** (-0.4 * k_ext_v * X_moon)) * (1.0 - 10.0 ** (-0.4 * k_ext_v * X_target))
+
+    B_moon = B_moon_raw * KS91_FC_TO_NL_CONVERSION
+    
+    return B_moon
+
+def calculate_sky_brightness(
+    target_ra: float, 
+    target_dec: float, 
+    obs_time_utc: str | list[str],
+    mu_dark: float,
+    extinction_coeff: float,
+    lon: float = 120.8736,
+    lat: float = 23.4700,
+    elevation: float = 2862.0
+) -> Numeric:
+    """
+    Calculate total sky surface brightness including lunar contribution.
+    
+    Returns
+    -------
+    float
+        Total sky surface brightness [mag/arcsec^2].
+    """
+    alpha, rho, z_moon, z_target = get_moon_and_target_geometry(
+        target_ra, target_dec, obs_time_utc, lon, lat, elevation
+    )
+    
+    B_moon_nl = krisciunas_schaefer_1991(alpha, rho, z_moon, z_target, k_ext_v=extinction_coeff)
+    B_dark_nl = 34.08 * (10.0 ** (0.4 * (22.5 - mu_dark)))
+
+    B_total = B_moon_nl + B_dark_nl
+
+    B_total_safe = np.where(z_moon >= 90.0, B_dark_nl, B_total)
+    
+    mu_sky = 22.5 - 2.5 * np.log10(B_total_safe / 34.08)
+    
+    return cast(Numeric, mu_sky)

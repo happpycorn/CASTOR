@@ -1,125 +1,183 @@
 import pytest
 import numpy as np
+import numpy.testing as npt
+
+# 假設你的模組路徑是 castor.physics
 from castor.physics import (
-    calc_pixel_scale,
-    calc_telescope_area,
-    calc_photon_energy,
-    calc_throughput,
-    calc_flux_in_aperture,
-    calc_source_count_rate,
-    calc_exposure_time,
-    calc_total_noise_and_snr
+    calculate_airmass,
+    calculate_effective_area,
+    convert_ab_to_wavelength_flux,
+    calculate_point_source_rate,
+    calculate_extended_source_rate,
+    calculate_sky_background_rate,
+    calculate_single_snr,
+    calculate_total_snr,
+    solve_required_exposures
 )
 
-# ----------------------------------------------------------------------
-# 1. Spatial & Geometry Tests
-# ----------------------------------------------------------------------
+# ==========================================
+# Global Core Properties (向量化與極限測試)
+# ==========================================
 
-def test_calc_pixel_scale_lulin_2m():
-    """Verify pixel scale for Lulin 2-m telescope with 20 micron pixels."""
-    # Based on etc2.cgi: focal=15.0, pixelsize=20.0 -> approx 0.275 arcsec/pix
-    focal_m = 15.0
-    pix_micron = 20.0
-    result = calc_pixel_scale(focal_m, pix_micron)
-    assert pytest.approx(result, rel=1e-4) == 0.2750
-
-def test_calc_telescope_area_1m():
-    """Verify gathering area for Lulin 1-m telescope."""
-    # Area = pi * (0.5)^2 approx 0.78539[cite: 7]
-    result = calc_telescope_area(1.0)
-    assert pytest.approx(result, rel=1e-5) == np.pi * 0.25
-
-# ----------------------------------------------------------------------
-# 2. Photon & Energy Tests
-# ----------------------------------------------------------------------
-
-def test_calc_photon_energy_v_band():
-    """Verify photon energy for V-band (~540nm)."""
-    wavelength_m = 540e-9
-
-    from castor.physics import PLANCK_CONSTANT, SPEED_OF_LIGHT
+def test_vectorization_support():
+    """確保核心函式能完美支援 NumPy 陣列，不拋出 TypeError。"""
+    zenith_angles = np.array([0.0, 60.0])
+    expected_airmass = np.array([1.0, 2.0])
     
-    expected = (PLANCK_CONSTANT * SPEED_OF_LIGHT) / wavelength_m
-    result = calc_photon_energy(wavelength_m)
+    result = calculate_airmass(zenith_angles)
     
-    assert result == pytest.approx(expected, rel=1e-9)
+    assert isinstance(result, np.ndarray)
+    npt.assert_allclose(result, expected_airmass, rtol=1e-5)
 
-def test_calc_flux_in_aperture_gaussian():
-    """Verify flux fraction using the analytical Gaussian solution."""
-    # If aperture radius equals sigma, enclosed flux should be ~39.3%
-    # If aperture radius = 2.3548 * sigma (i.e., radius = FWHM), enclosed flux is ~93.7%[cite: 4, 6]
-    seeing = 1.0
-    aperture = 1.0  # Radius = FWHM
-    result = calc_flux_in_aperture(aperture, seeing)
-    # 1 - exp(- (1^2) / (2 * (1/2.3548)^2)) approx 0.937
-    assert result > 0.93 and result < 0.95
+# ==========================================
+# Stage 2: Physical & Environmental 
+# ==========================================
 
-# ----------------------------------------------------------------------
-# 3. Integration & Loop-back Tests (The "Big Boss")
-# ----------------------------------------------------------------------
+def test_calculate_airmass():
+    """基準與極限測試：0 度為 1.0，60 度為 2.0"""
+    assert calculate_airmass(0.0) == pytest.approx(1.0)
+    assert calculate_airmass(60.0) == pytest.approx(2.0, rel=1e-5)
 
-def test_snr_to_exposure_time_consistency():
-    """
-    Round-trip test: 
-    Calculate SNR for a given time, then use that SNR to solve for time.
-    The results must match.
-    """
-    # Mock parameters for a bright-ish source
-    src_rate = 100.0   # e-/sec
-    sky_rate = 10.0    # e-/sec/pix
-    dark_rate = 0.1    # e-/sec/pix
-    rd_noise = 5.0     # e-
-    npix = 50.0        # pixels in aperture
-    target_time = 300.0 # seconds
+def test_calculate_effective_area():
+    """測試有/無副鏡遮蔽時的面積計算"""
+    # 只有主鏡 (2m)，沒有副鏡遮蔽
+    area_no_obs = calculate_effective_area(2.0, 0.0)
+    expected_no_obs = np.pi * (1.0 ** 2)  # pi * r^2, r=1
+    assert area_no_obs == pytest.approx(expected_no_obs)
     
-    # Step 1: Forward calculation (Get SNR)[cite: 5, 7]
-    _, snr = calc_total_noise_and_snr(
-        src_rate, sky_rate, dark_rate, rd_noise, npix, np.array(target_time)
-    )
+    # 加上 1m 的副鏡遮蔽
+    area_obs = calculate_effective_area(2.0, 1.0)
+    expected_obs = (np.pi / 4.0) * (2.0**2 - 1.0**2)
+    assert area_obs == pytest.approx(expected_obs)
+
+def test_convert_ab_to_wavelength_flux():
+    """測試 AB 星等為 0 時的通量轉換是否符合 3631 Jy 的基準"""
+    mag_ab = 0.0
+    wavelength_nm = 500.0  # 500 nm = 5000 Å
     
-    # Step 2: Reverse calculation (Solve for Time)[cite: 4, 6]
-    solved_time = calc_exposure_time(
-        src_rate, sky_rate, dark_rate, rd_noise, snr, npix
-    )
+    result_f_lambda = convert_ab_to_wavelength_flux(mag_ab, wavelength_nm)
     
-    # They should be nearly identical
-    assert pytest.approx(solved_time, rel=1e-5) == target_time
+    # 理論手算值：
+    # F_nu = 3631 Jy = 3631 * 1e-23 erg/s/cm²/Hz = 3.631e-20
+    # lambda = 5000 Å
+    # c = 2.99792458e18 Å/s
+    # F_lambda = F_nu * (c / lambda^2) = 3.631e-20 * (2.99792458e18 / 25000000)
+    expected_f_lambda = 3.631e-20 * (2.99792458e18 / (5000.0 ** 2))
+    
+    assert result_f_lambda == pytest.approx(expected_f_lambda, rel=1e-5)
 
-# ----------------------------------------------------------------------
-# 4. Throughput & Rate Tests
-# ----------------------------------------------------------------------
+# ==========================================
+# Stage 3: Photoelectron Count Rates
+# ==========================================
 
-def test_calc_throughput_basic():
-    """Verify total throughput calculation."""
-    # 假設 M1=0.9, M2=0.9, Filter=0.8, Glass=0.95, QE=0.8
-    result = calc_throughput(0.9, 0.9, 0.8, 0.95, 0.8, 1)
-    expected = 0.9 * 0.9 * 0.8 * 0.95 * 0.8  # 應為 0.49248
-    assert pytest.approx(result) == expected
-
-def test_calc_source_count_rate_standard():
-    """Verify source count rate for a V=15 mag star."""
-    # 模擬鹿林 1-m 望遠鏡與 V-band 參數
-    params = {
-        "zero_mag_flux": 3.6e-9,      # V-band 0等星通量
-        "source_mag": 15.0,           # 15等星
-        "extinction": 0.15,           # 大氣消光係數
-        "airmass": 1.0,               # 天頂觀測
-        "filter_width_m": 89e-9,      # V-band 頻寬
-        "telescope_area_m2": 0.785,    # 1米口徑面積
-        "photon_energy_j": 3.68e-19,  # V-band 單光子能量 (先前測過)
-        "total_throughput": 0.5,      # 假設總穿透率 50%
-        "enclosed_flux_fraction": 0.9 # 假設 90% 光線在光圈內
+@pytest.fixture
+def dummy_stage3_params():
+    """提供一組標準的 Stage 3 假參數供測試使用"""
+    return {
+        "f_lambda": 1e-15,
+        "extinction_coeff": 0.2,
+        "airmass": 1.5,
+        "filter_bandwidth": 100.0,
+        "effective_area": 3.14,
+        "photon_energy": 4e-12,
+        "total_throughput": 0.6
     }
+
+def test_extinction_null_effect(dummy_stage3_params):
+    """大氣消光防呆：消光係數為 0 時，抵達通量不衰減"""
+    params = dummy_stage3_params.copy()
+
+    base_flux = params.pop("f_lambda")
     
-    # 手動預算流程：
-    # 1. 考慮消光後的星等 = 15 + (0.15 * 1.0) = 15.15
-    # 2. Flux = 3.6e-9 * 10**(-0.4 * 15.15)
-    # 3. Power = Flux * 89e-9 * 0.785
-    # 4. Rate = (Power / 3.68e-19) * 0.5 * 0.9
+    # 有大氣消光
+    rate_with_ext = calculate_point_source_rate(
+        **params, f_lambda_total=base_flux, enclosed_flux_fraction=0.8
+    )
     
-    flux = params["zero_mag_flux"] * 10**(-0.4 * (params["source_mag"] + params["extinction"] * params["airmass"]))
-    power = flux * params["filter_width_m"] * params["telescope_area_m2"]
-    expected_rate = (power / params["photon_energy_j"]) * params["total_throughput"] * params["enclosed_flux_fraction"]
+    # 無大氣消光 (k_ext = 0)
+    params["extinction_coeff"] = 0.0
+    rate_no_ext = calculate_point_source_rate(
+        **params, f_lambda_total=base_flux, enclosed_flux_fraction=0.8
+    )
     
-    result = calc_source_count_rate(**params)
-    assert pytest.approx(result, rel=1e-5) == expected_rate
+    # 沒有消光時算出的計數率必須嚴格大於有消光時
+    assert rate_no_ext > rate_with_ext
+
+def test_geometric_divergence(dummy_stage3_params):
+    """幾何分流驗證：確保不同來源僅因為幾何常數（面積、比例）而有倍數差異"""
+    params = dummy_stage3_params.copy()
+    
+    # 把通用的 f_lambda 拿出來，避免 kwargs 報錯
+    base_flux = params.pop("f_lambda") 
+    
+    # 1. 點源 (f_enc = 0.5)
+    rate_point = calculate_point_source_rate(
+        **params, 
+        f_lambda_total=base_flux, 
+        enclosed_flux_fraction=0.5
+    )
+    
+    # 2. 天光背景 (單一像素，S_pixel = 2.0，面積為 4)
+    rate_sky = calculate_sky_background_rate(
+        **params, 
+        f_lambda_sky=base_flux, 
+        pixel_scale=2.0
+    )
+    
+    # 3. 延伸源 (N_pix = 10, S_pixel = 2.0，總面積為 40)
+    rate_ext = calculate_extended_source_rate(
+        **params, 
+        f_lambda_surface=base_flux, 
+        num_pixels_aperture=10.0, 
+        pixel_scale=2.0
+    )
+    
+    # 斷言它們之間的純幾何倍率關係
+    assert rate_sky == pytest.approx(rate_point * 8.0)
+    assert rate_ext == pytest.approx(rate_sky * 10.0)
+
+# ==========================================
+# Stage 4: Final Output Metrics
+# ==========================================
+
+@pytest.fixture
+def dummy_stage4_params():
+    """提供一組標準的 Stage 4 假參數供測試使用"""
+    return {
+        "source_count_rate": 100.0,
+        "sky_count_rate": 10.0,
+        "dark_current_rate": 0.1,
+        "readout_noise": 5.0,
+        "num_pixels_aperture": 4.0
+    }
+
+def test_zero_exposure(dummy_stage4_params):
+    """曝光時間歸零：沒有曝光時間就沒有 SNR"""
+    snr = calculate_single_snr(**dummy_stage4_params, single_exp_time=0.0)
+    assert snr == 0.0
+
+def test_readout_noise_scaling(dummy_stage4_params):
+    """多重曝光噪聲累積：總時間相同，分多次拍的 SNR 必須較低（因為讀取雜訊累積）"""
+    params = dummy_stage4_params.copy()
+    
+    # 情況 A：單次曝光 100 秒 (1 張)
+    snr_single_shot = calculate_total_snr(
+        **params, single_exp_time=100.0, total_exp_time=100.0, num_exposures=1
+    )
+    
+    # 情況 B：單次曝光 10 秒，拍 10 張 (總時間一樣是 100 秒)
+    snr_multi_shot = calculate_total_snr(
+        **params, single_exp_time=10.0, total_exp_time=100.0, num_exposures=10
+    )
+    
+    assert snr_single_shot > snr_multi_shot
+
+def test_snr_reversibility():
+    """完美可逆性：反推所需的曝光張數必須精準"""
+    target_snr = 20.0
+    single_snr = 10.0
+    
+    required_exposures = solve_required_exposures(target_snr, single_snr)
+    
+    # (20 / 10)^2 = 4.0
+    assert required_exposures == pytest.approx(4.0)
