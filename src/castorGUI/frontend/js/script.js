@@ -44,13 +44,25 @@ class UIController {
             select.value = firstKey;
             this.applyPreset(categoryName, firstKey);
         }
+        
+        // 初始載入時，執行一次顯示/隱藏的判定
+        this.toggleCustomDetails(select);
     }
 
     bindEvents() {
-        // 硬體預設切換
-        document.getElementById('telescope-template').addEventListener('change', (e) => this.applyPreset('telescopes', e.target.value));
-        document.getElementById('camera-template').addEventListener('change', (e) => this.applyPreset('cameras', e.target.value));
-        document.getElementById('filter-template').addEventListener('change', (e) => this.applyPreset('filters', e.target.value));
+        // 硬體預設切換，加上了 toggleCustomDetails 聯動
+        document.getElementById('telescope-template').addEventListener('change', (e) => {
+            this.applyPreset('telescopes', e.target.value);
+            this.toggleCustomDetails(e.target);
+        });
+        document.getElementById('camera-template').addEventListener('change', (e) => {
+            this.applyPreset('cameras', e.target.value);
+            this.toggleCustomDetails(e.target);
+        });
+        document.getElementById('filter-template').addEventListener('change', (e) => {
+            this.applyPreset('filters', e.target.value);
+            this.toggleCustomDetails(e.target);
+        });
 
         // 漸進式揭露 UI 切換
         document.getElementById('target-brightness-type').addEventListener('change', (e) => this.toggleBrightnessUI(e.target.value));
@@ -73,7 +85,6 @@ class UIController {
         const presetData = this.presets[category][templateName];
         if (!presetData) return;
 
-        // 因為 JSON 的 Key 現在完全等於 HTML 的 name 屬性，我們可以直接迴圈賦值！
         for (const [inputName, value] of Object.entries(presetData)) {
             const inputElement = document.querySelector(`input[name="${inputName}"]`);
             if (inputElement && value !== null) {
@@ -83,6 +94,16 @@ class UIController {
                 inputElement.style.backgroundColor = 'rgba(197, 160, 89, 0.3)';
                 setTimeout(() => inputElement.style.backgroundColor = '', 400);
             }
+        }
+    }
+
+    // 控制「自訂參數區塊」的顯示與隱藏
+    toggleCustomDetails(selectElement) {
+        const customDetailsDiv = selectElement.closest('.instrument-group').querySelector('.custom-details');
+        if (selectElement.value === 'CUSTOM') {
+            customDetailsDiv.classList.remove('hidden-detail');
+        } else {
+            customDetailsDiv.classList.add('hidden-detail');
         }
     }
 
@@ -129,8 +150,8 @@ class PayloadBuilder {
         for (let el of formElements) {
             if (!el.name || el.name.startsWith('preset_') || el.id === 'toggle-array-mode') continue;
             
-            // 如果該輸入框所在的容器被 hidden 隱藏了，代表不是目前的策略/模型，直接略過
-            if (el.closest('.dynamic-group, [hidden]') && el.closest('[hidden]')) {
+            // 【打包 JSON 邏輯】：只略過真正二選一沒選到的動態欄位，把隱藏的 custom 數值一起打包！
+            if (el.closest('.dynamic-group[hidden]')) {
                 continue; 
             }
 
@@ -140,10 +161,11 @@ class PayloadBuilder {
             this._setNestedValue(payload, el.name.split('.'), value);
         }
 
-        // 2. 特殊格式處理 (時間格式需符合 ISO 8601 AwareDatetime)
+        // 2. 特殊格式處理 (將當地時間轉換為後端需要的標準 UTC ISO 8601)
         if (payload.environment && payload.environment.observing_time_utc) {
-            // 簡單補上秒與 Z 來模擬 UTC
-            payload.environment.observing_time_utc += ":00Z";
+            const localTimeString = payload.environment.observing_time_utc;
+            const dateObj = new Date(localTimeString);
+            payload.environment.observing_time_utc = dateObj.toISOString();
         }
 
         return payload;
@@ -214,7 +236,6 @@ class ResultRenderer {
         document.getElementById('res-total-fwhm').textContent = data.diagnostics.total_fwhm.toFixed(2);
         document.getElementById('res-pixel-scale').textContent = data.diagnostics.pixel_scale.toFixed(3);
         document.getElementById('res-eff-area').textContent = data.diagnostics.effective_area.toFixed(3);
-        // 將比例轉為百分比顯示更直覺
         document.getElementById('res-throughput').textContent = (data.diagnostics.total_throughput * 100).toFixed(1);
         document.getElementById('res-enclosed-flux').textContent = (data.diagnostics.enclosed_flux_fraction * 100).toFixed(1);
         document.getElementById('res-num-pixels').textContent = data.diagnostics.num_pixels_aperture.toFixed(1);
@@ -225,7 +246,6 @@ class ResultRenderer {
         // --- 4. Hero Result ---
         this._renderPrimary(data);
 
-        // 陣列模式暫時保留原本介面，未來可擴充呼叫 batch API
         const plotArea = document.getElementById('plot-area');
         if (isArrayMode) {
             plotArea.hidden = false;
@@ -239,7 +259,6 @@ class ResultRenderer {
         const valueEl = document.getElementById('primary-result-value');
         const descEl = document.getElementById('primary-result-desc');
 
-        // 判斷回傳結果是否包含 required_exposures 來決定顯示策略
         if (data.core.required_exposures === null || data.core.required_exposures === undefined) {
             labelEl.textContent = 'Signal-to-Noise Ratio (SNR)';
             valueEl.textContent = data.core.total_snr.toFixed(2);
@@ -279,11 +298,98 @@ class ResultRenderer {
 }
 
 // ==========================================
+// 5. 步驟化表單控制器 (StepperController)
+// ==========================================
+class StepperController {
+    constructor() {
+        this.currentStep = 0;
+        this.steps = Array.from(document.querySelectorAll('.step-content'));
+        this.indicators = document.querySelectorAll('.stepper-indicator .step');
+        
+        this.btnNext = document.getElementById('btn-next');
+        this.btnPrev = document.getElementById('btn-prev');
+        this.btnSubmit = document.getElementById('btn-submit');
+
+        this.bindEvents();
+        this.updateUI(); // 確保初始狀態正確
+    }
+
+    bindEvents() {
+        this.btnNext.addEventListener('click', () => this.nextStep());
+        this.btnPrev.addEventListener('click', () => this.prevStep());
+    }
+
+    nextStep() {
+        const currentSection = this.steps[this.currentStep];
+        const inputs = currentSection.querySelectorAll('input, select');
+        
+        let isValid = true;
+        for (let input of inputs) {
+            // 【UI 驗證邏輯】：只要是隱藏的動態群組，或是收合的 custom 欄位，統統不做必填檢查！
+            if (input.closest('.dynamic-group[hidden]') || input.closest('.hidden-detail')) {
+                continue; 
+            }
+
+            if (!input.checkValidity()) {
+                input.reportValidity(); // 彈出瀏覽器內建的警告
+                isValid = false;
+                break;
+            }
+        }
+
+        if (!isValid) return;
+
+        if (this.currentStep < this.steps.length - 1) {
+            this.currentStep++;
+            this.updateUI();
+        }
+    }
+
+    prevStep() {
+        if (this.currentStep > 0) {
+            this.currentStep--;
+            this.updateUI();
+        }
+    }
+
+    updateUI() {
+        this.steps.forEach((step, index) => {
+            step.hidden = (index !== this.currentStep);
+        });
+
+        this.indicators.forEach((ind, index) => {
+            if (index === this.currentStep) {
+                ind.classList.add('active');
+                ind.classList.remove('completed');
+            } else if (index < this.currentStep) {
+                ind.classList.remove('active');
+                ind.classList.add('completed');
+            } else {
+                ind.classList.remove('active', 'completed');
+            }
+        });
+
+        this.btnPrev.hidden = (this.currentStep === 0);
+        
+        if (this.currentStep === this.steps.length - 1) {
+            this.btnNext.hidden = true;
+            this.btnSubmit.hidden = false;
+        } else {
+            this.btnNext.hidden = false;
+            this.btnSubmit.hidden = true;
+        }
+    }
+}
+
+// ==========================================
 // 🚀 主程式進入點 (Main Execution)
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     const ui = new UIController();
     await ui.loadPresets();
+
+    // 啟動步驟化表單
+    const stepper = new StepperController();
 
     document.getElementById('castor-form').addEventListener('submit', async (e) => {
         e.preventDefault(); 
@@ -292,7 +398,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             const payload = PayloadBuilder.build();
-            console.log("JSON Payload to Send:", payload); // 你可以在 Browser Console 檢查打包結果
+            console.log("JSON Payload to Send:", payload); 
             
             const resultData = await CastorAPI.calculate(payload);
             console.log("Response Received:", resultData);

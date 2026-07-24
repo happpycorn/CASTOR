@@ -18,11 +18,18 @@
     <main>
         <form id="castor-form">
 
+            <!-- [新增] 步驟化進度指示條 -->
+            <div class="stepper-indicator">
+                <div class="step active" data-step="1">1. Instrument</div>
+                <div class="step" data-step="2">2. Target</div>
+                <div class="step" data-step="3">3. Environment</div>
+                <div class="step" data-step="4">4. Calculation</div>
+            </div>
+
             <!-- ==========================================
-                 Section 1: Instrument Profile
-                 完全對齊 `InstrumentProfile` Schema
+                 Step 1: Instrument Profile
             ========================================== -->
-            <section id="section-instrument">
+            <section id="section-instrument" class="step-content active">
                 <h2>1. Instrument Profile</h2>
                 
                 <div class="instrument-group">
@@ -32,15 +39,15 @@
                             <option value="">Loading...</option>
                         </select>
                     </p>
-                    <details>
-                        <summary>🔭 Telescope Optics & Specs</summary>
+                    <div class="custom-details">
+                        <h4>[Telescope Optics & Specs]</h4>
                         <ul>
                             <li><label>Primary Mirror Diameter (m):</label> <input type="number" name="instrument.telescope.primary_mirror_diameter" value="1.0" step="any" required></li>
                             <li><label>Secondary Mirror Diameter (m):</label> <input type="number" name="instrument.telescope.secondary_mirror_diameter" value="0.3" step="any" required></li>
                             <li><label>Focal Length (m):</label> <input type="number" name="instrument.telescope.focal_length" value="8.0" step="any" required></li>
                             <li><label>Optical Throughput (0.0 - 1.0):</label> <input type="number" name="instrument.telescope.optical_throughput" value="0.85" step="any" max="1" min="0" required></li>
                         </ul>
-                    </details>
+                    </div>
                 </div>
 
                 <div class="instrument-group">
@@ -50,8 +57,8 @@
                             <option value="">Loading...</option>
                         </select>
                     </p>
-                    <details>
-                        <summary>📷 Camera Detector & Noise</summary>
+                    <div class="custom-details">
+                        <h4>[Camera Detector & Noise]</h4>
                         <ul>
                             <li><label>Pixel Pitch (μm):</label> <input type="number" name="instrument.camera.pixel_pitch" value="15.0" step="any" required></li>
                             <li><label>Quantum Efficiency (0.0 - 1.0):</label> <input type="number" name="instrument.camera.quantum_efficiency" value="0.85" step="any" max="1" min="0" required></li>
@@ -59,7 +66,7 @@
                             <li><label>Readout Noise (e-/pix):</label> <input type="number" name="instrument.camera.readout_noise" value="5.0" step="any" required></li>
                             <li><label>Full Well Capacity (e-):</label> <input type="number" name="instrument.camera.full_well_capacity" value="100000" step="any" required></li>
                         </ul>
-                    </details>
+                    </div>
                 </div>
 
                 <div class="instrument-group">
@@ -69,25 +76,23 @@
                             <option value="">Loading...</option>
                         </select>
                     </p>
-                    <details>
-                        <summary>🌈 Filter Characteristics</summary>
+                    <div class="custom-details">
+                        <h4>[Filter Characteristics]</h4>
                         <ul>
                             <li><label>Central Wavelength (nm):</label> <input type="number" name="instrument.optic_filter.central_wavelength" value="550.0" step="any" required></li>
                             <li><label>Filter Bandwidth (nm):</label> <input type="number" name="instrument.optic_filter.filter_bandwidth" value="89.0" step="any" required></li>
                             <li><label>Filter Transmission (0.0 - 1.0):</label> <input type="number" name="instrument.optic_filter.filter_transmission" value="0.9" step="any" max="1" min="0" required></li>
                         </ul>
-                    </details>
+                    </div>
                 </div>
             </section>
 
             <!-- ==========================================
-                 Section 2: Target Profile
-                 引入真正的多型 (Polymorphism) 開關
+                 Step 2: Target Profile
             ========================================== -->
-            <section id="section-target">
+            <section id="section-target" class="step-content" hidden>
                 <h2>2. Target Profile</h2>
                 
-                <!-- 形態開關 -->
                 <p>
                     <label for="target-morphology">Target Morphology:</label>
                     <select id="target-morphology" name="target.morphology.type">
@@ -96,7 +101,6 @@
                     </select>
                 </p>
 
-                <!-- 亮度模型開關 (漸進式揭露) -->
                 <p>
                     <label for="target-brightness-type">Brightness System:</label>
                     <select id="target-brightness-type" name="target.brightness.type">
@@ -107,7 +111,6 @@
                     </select>
                 </p>
 
-                <!-- 動態顯示區：根據 Brightness System 切換 -->
                 <div id="group-target-mag" class="dynamic-group">
                     <p>
                         <label>Apparent Magnitude (mag):</label>
@@ -127,47 +130,43 @@
                     </p>
                 </div>
 
-                <details>
-                    <summary>⚙️ SED Model & Coordinates</summary>
-                    
-                    <h4>[Spectral Energy Distribution (SED)]</h4>
-                    <ul>
-                        <li>
-                            <label for="sed-type">SED Model:</label>
-                            <select id="sed-type" name="target.sed.type">
-                                <option value="flat">Flat Spectrum</option>
-                                <option value="Temp">Blackbody (Temp)</option>
-                            </select>
-                        </li>
-                        <li id="group-temperature" hidden>
-                            <label>Blackbody Temperature (K):</label>
-                            <input type="number" name="target.sed.temperature_k" value="5800" step="any" min="0">
-                        </li>
-                    </ul>
+                <!-- 攤平的 SED 與座標 -->
+                <h4>Spectral Energy Distribution (SED)</h4>
+                <ul>
+                    <li>
+                        <label for="sed-type">SED Model:</label>
+                        <select id="sed-type" name="target.sed.type">
+                            <option value="flat">Flat Spectrum</option>
+                            <option value="Temp">Blackbody (Temp)</option>
+                        </select>
+                    </li>
+                    <li id="group-temperature" class="dynamic-group" hidden>
+                        <label>Blackbody Temperature (K):</label>
+                        <input type="number" name="target.sed.temperature_k" value="5800" step="any" min="0">
+                    </li>
+                </ul>
 
-                    <h4>[Astrometry Coordinates]</h4>
-                    <p style="font-size: 0.8rem; color: var(--text-muted);">* Must be in Decimal Degrees (J2000).</p>
-                    <ul>
-                        <li>
-                            <label>Right Ascension (RA, 0-360 deg):</label>
-                            <input type="number" name="target.ra" value="180.0" step="any" min="0" max="360" required>
-                        </li>
-                        <li>
-                            <label>Declination (Dec, ±90 deg):</label>
-                            <input type="number" name="target.dec" value="45.0" step="any" min="-90" max="90" required>
-                        </li>
-                    </ul>
-                </details>
+                <h4>Astrometry Coordinates</h4>
+                <p style="font-size: 0.8rem; color: var(--text-muted);">* Must be in Decimal Degrees (J2000).</p>
+                <ul>
+                    <li>
+                        <label>Right Ascension (RA, 0-360 deg):</label>
+                        <input type="number" name="target.ra" value="180.0" step="any" min="0" max="360" required>
+                    </li>
+                    <li>
+                        <label>Declination (Dec, ±90 deg):</label>
+                        <input type="number" name="target.dec" value="45.0" step="any" min="-90" max="90" required>
+                    </li>
+                </ul>
             </section>
 
             <!-- ==========================================
-                 Section 3: Environment Conditions
-                 拔除 Airmass/Sky Rate，新增詳細 FWHM
+                 Step 3: Environment Conditions
             ========================================== -->
-            <section id="section-environment">
+            <section id="section-environment" class="step-content" hidden>
                 <h2>3. Environment Conditions</h2>
                 
-                <h4>[Spatial Spreading Errors (arcsec)]</h4>
+                <h4>Spatial Spreading Errors (arcsec)</h4>
                 <div class="inline-group" style="margin-bottom: 15px;">
                     <label>Seeing:</label> <input type="number" name="environment.seeing_fwhm" value="1.5" step="any" required>
                     <label>Diffraction:</label> <input type="number" name="environment.diffraction_fwhm" value="0.2" step="any" required>
@@ -177,7 +176,7 @@
                     <label>Tracking:</label> <input type="number" name="environment.tracking_fwhm" value="0.1" step="any" required>
                 </div>
 
-                <h4>[Atmosphere & Background]</h4>
+                <h4>Atmosphere & Background</h4>
                 <ul>
                     <li>
                         <label>Dark Sky Background (mu_dark, mag/arcsec²):</label>
@@ -189,33 +188,31 @@
                     </li>
                 </ul>
 
-                <details>
-                    <summary>⚙️ Spatiotemporal Context (For Airmass & Moon)</summary>
-                    <ul>
-                        <li>
-                            <label>Observation Time (UTC):</label>
-                            <input type="datetime-local" name="environment.observing_time_utc" required>
-                        </li>
-                        <li>
-                            <label>Observatory Coordinates (Lat / Lon / Elev m):</label>
-                            <div class="inline-group">
-                                <input type="number" name="environment.location.latitude_deg" value="23.47" step="any" required>
-                                <input type="number" name="environment.location.longitude_deg" value="120.87" step="any" required>
-                                <input type="number" name="environment.location.elevation_m" value="2862" step="any" required>
-                            </div>
-                        </li>
-                    </ul>
-                </details>
+                <!-- 攤平的時空背景設定，並更改提示為 Local Time -->
+                <h4>Spatiotemporal Context (For Airmass & Moon)</h4>
+                <ul>
+                    <li>
+                        <label>Observation Time (Local Time):</label>
+                        <input type="datetime-local" name="environment.observing_time_utc" required>
+                    </li>
+                    <li>
+                        <label>Observatory Coordinates (Lat / Lon / Elev m):</label>
+                        <div class="inline-group">
+                            <input type="number" name="environment.location.latitude_deg" value="23.47" step="any" required>
+                            <input type="number" name="environment.location.longitude_deg" value="120.87" step="any" required>
+                            <input type="number" name="environment.location.elevation_m" value="2862" step="any" required>
+                        </div>
+                    </li>
+                </ul>
             </section>
 
             <!-- ==========================================
-                 Section 4: Calculation Options
-                 完美映射 BaseOptions 與 Union 策略
+                 Step 4: Calculation Options
             ========================================== -->
-            <section id="section-options">
+            <section id="section-options" class="step-content" hidden>
                 <h2>4. Calculation Options</h2>
                 
-                <h4>[Base Configuration]</h4>
+                <h4>Base Configuration</h4>
                 <ul>
                     <li>
                         <label>Aperture Factor (k_ap):</label>
@@ -227,7 +224,7 @@
                     </li>
                 </ul>
 
-                <h4>[Observation Strategy]</h4>
+                <h4>Observation Strategy</h4>
                 <p>
                     <label for="calc-mode-type">Calculation Goal:</label>
                     <select id="calc-mode-type" name="options.type">
@@ -236,7 +233,6 @@
                     </select>
                 </p>
 
-                <!-- 動態顯示區：根據 Strategy 切換 -->
                 <div id="group-solve-snr" class="dynamic-group">
                     <p>
                         <label>Number of Exposures (Count):</label>
@@ -259,16 +255,20 @@
                             Enable Batch Array Mode (Time-Series Simulation)
                         </label>
                     </p>
-                    <!-- 未來 Batch Mode 需要額外時間擴充參數，這部分先保留 UI，由 JS 決定要不要發送至 `/api/calculate/batch` -->
                 </div>
             </section>
 
-            <button type="submit" id="btn-submit">Run Simulation</button>
+            <!-- [新增] 步驟導航按鈕 -->
+            <div class="stepper-actions">
+                <button type="button" id="btn-prev" class="btn-secondary" hidden>← Back</button>
+                <button type="button" id="btn-next" class="btn-primary">Next Step →</button>
+                <button type="submit" id="btn-submit" class="btn-submit" hidden>Run Simulation</button>
+            </div>
 
         </form>
     </main>
 
-    <!-- 結果區塊：只需更改 JS 的綁定路徑，HTML 結構保持不變即可 -->
+    <!-- 結果區塊保持不變 -->
     <section id="section-results">
         <h2>5. Results Dashboard</h2>
 

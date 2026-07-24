@@ -205,43 +205,143 @@ button[type="submit"]:hover {
 }
 
 /* ==========================================
-   5. 漸進式折疊特效 (Progressive Disclosure)
+   5. 儀器自訂參數區塊 (Custom Details)
+   取代原本的 details 標籤，改由 JS 控制顯示/隱藏
    ========================================== */
-details {
+.custom-details {
     background: var(--card-bg);
-    border: 1px solid transparent;
+    border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 12px;
-    margin-top: 5px;
+    padding: 15px;
+    margin-top: 10px;
+    /* 加上一點滑順的轉場設定 */
+    transition: all 0.3s ease-in-out;
+    opacity: 1;
+}
+
+/* 搭配 JS 使用的隱藏 class */
+.custom-details.hidden-detail {
+    display: none;
+    opacity: 0;
+}
+
+.custom-details h4 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    color: var(--primary);
+    font-size: 0.95rem;
+    border-bottom: 1px dashed var(--border);
+    padding-bottom: 8px;
+}
+
+
+/* ==========================================
+   7. Stepper UI (步驟化表單與導航按鈕)
+   ========================================== */
+.stepper-indicator {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 30px;
+    position: relative;
+    padding: 0 10px;
+}
+
+/* 進度條底線 (連結每個點) */
+.stepper-indicator::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--border);
+    z-index: 1;
+    transform: translateY(-50%);
+}
+
+.stepper-indicator .step {
+    position: relative;
+    z-index: 2;
+    background: var(--bg-dark);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    border: 2px solid var(--border);
     transition: all 0.3s ease;
 }
 
-details[open] {
-    border-color: var(--border);
-    background: rgba(0, 0, 0, 0.2);
+/* 當前步驟的發光特效 */
+.stepper-indicator .step.active {
+    color: #fff;
+    border-color: var(--primary);
+    background: rgba(197, 160, 89, 0.2);
+    box-shadow: 0 0 10px rgba(197, 160, 89, 0.4);
 }
 
-summary {
-    font-size: 0.9rem;
+/* 已完成步驟的樣式 */
+.stepper-indicator .step.completed {
     color: var(--primary);
-    font-weight: 500;
-    cursor: pointer;
-    list-style: none;
-    user-select: none;
+    border-color: var(--primary);
+    background: var(--bg-dark);
 }
 
-summary:hover { color: var(--primary-hover); }
-summary::-webkit-details-marker { display: none; } /* 隱藏預設三角形 */
-details[open] > summary { margin-bottom: 15px; border-bottom: 1px dashed var(--border); padding-bottom: 10px; }
+/* 底部按鈕區 */
+.stepper-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+    gap: 15px;
+}
+
+.stepper-actions button {
+    flex: 1;
+    padding: 14px;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* 返回按鈕 (低調一點) */
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    border: 1px solid var(--border);
+}
+.btn-secondary:hover { 
+    background: rgba(255, 255, 255, 0.1); 
+}
+
+/* 下一步按鈕 (強調) */
+.btn-primary {
+    background: rgba(197, 160, 89, 0.2);
+    color: var(--primary);
+    border: 1px solid var(--primary);
+}
+.btn-primary:hover {
+    background: var(--primary);
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(197, 160, 89, 0.3);
+}
+
+/* 最終計算按鈕 */
+.btn-submit {
+    background: linear-gradient(135deg, var(--primary), #8e7340);
+    color: #fff;
+    border: none;
+}
+.btn-submit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(197, 160, 89, 0.4);
+}
 
 /* ==========================================
    6. 結果呈現區 (Results & Data Table)
    ========================================== */
-/* ==========================================
-   6. 結果呈現區 (Results Dashboard)
-   ========================================== */
-
-/* 初始佔位符 */
 .placeholder-box {
     text-align: center;
     padding: 60px 20px;
