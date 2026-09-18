@@ -23,8 +23,8 @@ To use CASTOR, you will need:
 You can clone the repository and install the dependencies easily:
 
 ```bash
-git clone https://github.com/alexlee24/castor.git
-cd castor
+git clone https://github.com/happpycorn/CASTOR.git
+cd CASTOR
 uv sync
 ```
 
@@ -93,3 +93,8 @@ uv run pytest validation   # the comparisons, on purpose — see validation/VALI
 - **[Algorithm Theoretical Basis Document (ATBD)](docs/ATBD.md):** Mathematical formulations for photon count rates, SNR, and ephemeris.
 - **API Specifications:** CASTOR uses strict Pydantic schemas for data validation. For detailed request and response contracts, please refer directly to [`src/castor/schema.py`](src/castor/schema.py).
 - **[Validation](validation/VALIDATION_REPORT.md):** What CASTOR's answers are worth, measured against outside references and real frames — and [what it still does not know](validation/QUESTIONS.md), each item labelled with who can close it.
+
+Before using a calculated exposure count for an observing plan, read the
+[current limitations and release handoff](validation/QUESTIONS.md). In
+particular, solve-for-time can report an exposure count that does not reach the
+requested SNR when the camera has correlated background noise.

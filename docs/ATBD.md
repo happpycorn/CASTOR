@@ -415,6 +415,15 @@ While the Exposure Time Calculator (ETC) is designed to provide robust and effic
 
 ### 5.3 Detector and Noise Limitations
 
+* **Inverse exposure calculation with correlated noise:** The forward stack
+  calculation includes a background-flatness term that persists as exposures
+  accumulate, but the current solve-for-time path still assumes all noise
+  averages down as the square root of the exposure count. For SLT/DU934P r',
+  AB=20 and 120 s frames, it returns six frames for target SNR 20 while the
+  forward result is 14.44; the model ceiling is 18.46. Until question 17 in
+  `validation/QUESTIONS.md` is fixed, use the forward SNR calculation to check
+  any requested exposure count with a nonzero `background_flatness_fraction`.
+
 * **Linear Regime Operation:** The saturation time limit ($t_{\text{sat}}$) assumes a linear response up to the Full Well Capacity ($\text{FWC}$). Non-linear behaviors or charge transfer inefficiencies near saturation limits are not dynamically modeled.
 
 * **Constant Dark and Readout Noise:** Sensor parameters such as dark current rate ($R_{\text{dark}}$) and readout noise ($\text{RON}$) are treated as constant detector specifications across the entire array, omitting potential spatial variations or thermal fluctuations during long-term observations.

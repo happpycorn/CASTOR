@@ -3,7 +3,7 @@
 Everything CASTOR does not know, in one place, with the same field on every
 entry: **who can close it**. That field is the point of the file. Until now the
 open items were spread across this document, the standing findings in
-[README.md](README.md), the `GUESS` rows in `provenance.py`, the strict xfail
+[VALIDATION_REPORT.md](VALIDATION_REPORT.md), the `GUESS` rows in `provenance.py`, the strict xfail
 reasons and a docstring, and the honest answer to "what is still open?" was that
 nobody could say without reading all five.
 
@@ -12,6 +12,67 @@ calibrated LOT/SOPHIA frames over 18 nights (2025-09-29 to 2026-02-15), reduced
 against Pan-STARRS DR2; method is in `lulin.py`. Where a prototype is cited it
 is one of the two Perl calculators CASTOR was refactored from, transcribed in
 `lulin_prototype.py`.
+
+## Release handoff — 2026-09-18
+
+Start here after a long break. This is the state of `main` at `8d72093`, before
+any official release or version tag. The package still declares version 0.1.0.
+The default GitHub workflow runs the specification suite; desktop packages are
+built only by manually dispatching that workflow.
+
+**What reached `main` during the September freeze.** The end-to-end test became
+reproducible in `validation/` (`a4dd05c`, HAP-69), and a supposed bright-star
+noise failure was traced to the 16-bit ADC ceiling rather than the noise model
+(same commit, HAP-72). The tight 0.85-FWHM aperture was confirmed to be
+sensitive to PSF changes in real reductions; §5.2 of the ATBD now tells a user
+with simple aperture photometry to supply the larger aperture they actually
+use (`114702c`, HAP-11). The sky-estimate cost, SLT read noise, and correlated
+background term were added or corrected (`051994e`, `f393a54`, `6a34861`);
+SLT/DU934P now has a measured 2% `background_flatness_fraction` in its preset.
+The ATBD aperture statement was corrected (`a4dd05c`, HAP-71). Four SLT
+SN2024ggi nights still cannot separate extinction from per-night transparency
+(`7365adf`, HAP-73), so the Lulin preset retains its site-wide 0.17 fallback.
+The sky-model check exposed an uncharacterised light-pollution component at
+Lulin (`5b45ad5`, HAP-10); see questions 9, 10 and 16.
+
+**What has external support.** LOT/SOPHIA r' noise agrees with the observed
+per-star scatter on one night and field: median observed/predicted SNR 1.011
+for 261 saturation-safe stars below 60 ke-, with bootstrap 95% interval
+0.980–1.050. SLT r' extended-source aperture noise agrees to about 1% at
+large radii after its read-noise and flatness corrections. These results and
+their narrower operating conditions are in `VALIDATION_REPORT.md`; they do not
+establish accuracy across all filters, pointings, sky levels or instruments.
+
+**Before an official release.** Fix question 17: solve-for-time can return six
+SLT r' frames for a requested SNR of 20 while its own forward calculation says
+14.44 and the target is unreachable. Preserve the strict xfail until the
+response schema, CLI and GUI express unreachable goals. Then re-run both test
+suites and the preset check, exercise a freshly packaged desktop app on each
+supported platform, choose the release version, and create release notes and a
+tag. A passing push workflow alone has not exercised the packaging jobs.
+
+**Known limits to disclose even after that fix.** The sky model has not been
+validated across pointings and lunar conditions (HAP-10); Lulin extinction
+remains unmeasured by band (question 4); the default tight aperture needs a
+reduction method that controls PSF variation (HAP-11); VLT is explicitly a
+demonstration profile (questions 14–15). Other unresolved measurements and
+model gaps stay in the table below, with the person or work needed to close
+each. Do not treat a green specification suite as evidence that every preset
+is empirically calibrated.
+
+**Deliberately deferred.** Spectral SED handling (HAP-76), a free extended
+source aperture (HAP-77), a revised target format (HAP-68), moon-state display
+(HAP-74), stale-result indication (HAP-75), and the `environment` rename
+(HAP-14) are feature work. Structural refactoring is tracked in HAP-100.
+Readout overhead is question 11 and HAP-113. Revisit these after the release
+correctness gate, with tests around each behavior before changing it.
+
+**Resume commands.** From a clean checkout run `uv sync --locked`,
+`uv run pytest`, `uv run pytest validation`, and `uv run castor check`. The
+first suite should pass; the validation suite intentionally contains strict
+xfails documenting unresolved claims. Read this file, then the report and
+`docs/LESSONS.md`, before changing any preset value or interpreting a prior
+validation result.
 
 **Who can close it**
 
