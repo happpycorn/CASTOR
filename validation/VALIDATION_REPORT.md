@@ -526,11 +526,11 @@ near zenith, and requested SNR 20.
 | i' | 8.27 | unreachable | ceiling 8.27 < 20, reported unreachable |
 
 The r' request sits above its own ceiling: the response now returns
-`target_reachable = false`, `required_exposures = null`, `total_snr` = 18.46 (the
-ceiling), and a warning, rather than the six frames / SNR 14.44 the square-root
+`target_reachable = false`, `required_exposures = null`, `total_snr` = the
+ceiling, and a warning, rather than the six frames / SNR 14.44 the square-root
 law used to claim. The i' target is farther beyond its ceiling. The g' target is
-reachable and now takes 7 frames — enough to actually clear SNR 20 — where the
-old solver returned 4 and reached only 17.35.
+reachable and now takes 7 frames — enough to actually clear SNR 20 —
+where the old solver returned 4 and reached only 17.35.
 
 LOT is the control: Sophia's preset has `background_flatness_fraction = 0`, so
 the ceiling is infinite, the inverse collapses to the exact square-root law, and
@@ -551,10 +551,10 @@ and therefore the ceiling `S/F`. For a requested SNR `Q`:
 
 If the denominator is zero or negative (`Q >= S/F`), no finite exposure count can
 reach the request under the model, and CASTOR reports the target as unreachable.
-The analysis sweep evaluates this expression against the shipped
-`required_exposures` over LOT/SLT, g'/r'/i', AB 17–23 and target SNR 5–50; the two
-agree wherever the target is reachable, and the shipped solver returns the
-unreachable flag everywhere the ceiling is below the request.
+The sweep evaluates this expression against the shipped `required_exposures` over
+LOT/SLT, g'/r'/i', AB 17–23 and target SNR 5–50; the two agree wherever the
+target is reachable, and the shipped solver returns the unreachable flag
+everywhere the ceiling is below the request.
 
 ### Status
 
