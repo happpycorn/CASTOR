@@ -43,13 +43,16 @@ large radii after its read-noise and flatness corrections. These results and
 their narrower operating conditions are in `VALIDATION_REPORT.md`; they do not
 establish accuracy across all filters, pointings, sky levels or instruments.
 
-**Before an official release.** Fix question 17: solve-for-time can return six
-SLT r' frames for a requested SNR of 20 while its own forward calculation says
-14.44 and the target is unreachable. Preserve the strict xfail until the
-response schema, CLI and GUI express unreachable goals. Then re-run both test
-suites and the preset check, exercise a freshly packaged desktop app on each
-supported platform, choose the release version, and create release notes and a
-tag. A passing push workflow alone has not exercised the packaging jobs.
+**Before an official release.** Question 17 is now fixed: solve-for-time inverts
+the full stacked-SNR relation, so a returned frame count actually reaches the
+requested SNR, and a request above the flatness ceiling is reported as
+unreachable (`target_reachable = false`, `required_exposures = null`) through the
+response schema, the CLI and the GUI rather than answered with a wrong count. The
+former strict xfail in `test_solve_time_floor.py` is now a passing regression.
+What remains is release mechanics: re-run both test suites and the preset check,
+exercise a freshly packaged desktop app on each supported platform, choose the
+release version, and create release notes and a tag. A passing push workflow
+alone has not exercised the packaging jobs.
 
 **Known limits to disclose even after that fix.** The sky model has not been
 validated across pointings and lunar conditions (HAP-10); Lulin extinction
@@ -101,7 +104,7 @@ validation result.
 | 14 | The VLT profile is mostly invention | DECIDE | 12 `GUESS` rows |
 | 15 | FORS2's throughput is a fudge that works in one band | BUILD | strict xfail, `test_eso.py` |
 | 16 | Everything measured here looks in one direction | OBSERVE | `test_lulin.py` |
-| 17 | Solve-for-time ignores the correlated flatness-noise ceiling | BUILD | strict xfail, `test_solve_time_floor.py` |
+| 17 | Solve-for-time ignores the correlated flatness-noise ceiling | BUILD | Closed — `test_solve_time_floor.py` |
 
 ---
 
@@ -657,24 +660,29 @@ made.
 
 ---
 
-## 17. Solve-for-time ignores the correlated flatness-noise ceiling — BUILD
+## 17. Solve-for-time ignores the correlated flatness-noise ceiling — CLOSED
 
-**The forward model and inverse solver now disagree.** The 2% SLT background-
-flatness term is correlated across a stack, so it creates an asymptotic SNR
-ceiling. `calculate_total_snr()` implements that correctly. But
-`solve_required_exposures()` still returns `(target_snr / single_snr)^2`, which
-assumes every noise term averages down as the square root of the frame count.
+**Was:** the 2% SLT background-flatness term is correlated across a stack, so it
+creates an asymptotic SNR ceiling that `calculate_total_snr()` implemented
+correctly, but `solve_required_exposures()` returned `(target_snr / single_snr)^2`,
+which assumes every noise term averages down as the square root of the frame
+count. For the fixed near-zenith case (SLT/DU934P, r', AB=20, 120 s frames,
+requested SNR 20) the calculator said six frames were required and then reported
+an achieved SNR of only 14.44 — its own model put the asymptotic ceiling below
+20, so no number of frames could satisfy the request.
 
-For the fixed near-zenith case in `VALIDATION_REPORT.md` (solve-for-time) — SLT/DU934P, r',
-AB=20, 120 s frames, requested SNR 20 — the calculator says six frames are
-required and then reports an achieved SNR of only 14.44. Its own model puts the
-asymptotic ceiling below 20, so no number of frames can satisfy the request.
-
-**What changes with a fix.** The inverse needs to solve
-`SNR(N) = N*S / sqrt(N*V + N^2*F^2)` and return an explicit unreachable result
-when `target_snr >= S/F`. The response schema, CLI and GUI then need a way to
-represent that result rather than a finite exposure count. The strict xfail in
-`test_solve_time_floor.py` pins the present contradiction.
+**Fixed.** `solve_required_exposures()` now inverts the full relation
+`SNR(N) = N*a / sqrt(N*L + N^2*F^2)`, taking the ceiling from a new
+`calculate_flatness_snr_ceiling()` (`SNR_ceil = Rate_src / (f * Rate_sky * N_pix)`).
+When the ceiling is infinite (`f = 0`) it collapses to the old square-root law;
+when `target_snr >= SNR_ceil` it returns `+inf`, and the calculator translates
+that into an explicit unreachable response: `target_reachable = false`,
+`required_exposures = null`, `total_snr` set to the ceiling, and a warning. The
+`CoreResult` schema carries `snr_ceiling` and `target_reachable`; the CLI and GUI
+both surface the unreachable state; the batch path reports unreachable timestamps
+as `None` gaps. `test_solve_time_floor.py` is now a passing regression covering a
+reachable target that meets its request, an unreachable target that is flagged,
+and the `f = 0` control. Derivation in ATBD §4.3.3.
 
 ---
 

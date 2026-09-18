@@ -375,9 +375,19 @@ $N_{\text{est}}$ carries the same per-pixel variance as the aperture, because th
 Because $N_{\text{est}} \propto N_{\text{pix}}^2$, it is negligible for tight apertures and dominant for wide ones. At $k_{\text{ap}} = 0.85$ with a $3$–$5 \cdot \text{FWHM}$ annulus it adds about 7% to the variance; at $k_{\text{ap}} = 3$ with a $5$–$8 \cdot \text{FWHM}$ annulus it adds about 36%. That second figure is measured, not assumed: see §5.3.
 
 **4.3.3 Required Exposures**
-If the calculation mode demands solving for time based on a desired signal quality, the required number of exposures is derived as:
+When the calculation solves for time, the required number of exposures inverts the stacked-SNR relation of §4.3.1. If every noise term averaged down between frames this would be the familiar
 
 $$N_{\text{exp}} = \left( \frac{\text{SNR}_{\text{target}}}{\text{SNR}_{\text{single}}} \right)^2$$
+
+but the flatness residual $V_{\text{flat}}$ does not (§4.3.1a): it tracks the *total* accumulated background, so in a stack its variance grows as $N_{\text{exp}}^2$ rather than $N_{\text{exp}}$. Writing the per-frame signal as $a$, the per-frame variance of the averaging terms (source, sky, dark, readout) as $L$, and the per-frame flatness amplitude as $F$ so that $V_{\text{flat}} = (N_{\text{exp}} F)^2$, the stack SNR is
+
+$$\text{SNR}(N_{\text{exp}}) = \frac{N_{\text{exp}} \cdot a}{\sqrt{N_{\text{exp}} \cdot L + N_{\text{exp}}^2 \cdot F^2}}$$
+
+which inverts to
+
+$$N_{\text{exp}} = \frac{\text{SNR}_{\text{target}}^2 \left( 1/\text{SNR}_{\text{single}}^2 - 1/\text{SNR}_{\text{ceil}}^2 \right)}{1 - \left( \text{SNR}_{\text{target}} / \text{SNR}_{\text{ceil}} \right)^2}, \qquad \text{SNR}_{\text{ceil}} = \frac{a}{F} = \frac{Rate_{\text{src}}}{f_{\text{flat}} \cdot Rate_{\text{sky}} \cdot N_{\text{pix}}}$$
+
+$\text{SNR}_{\text{ceil}}$ is the asymptotic ceiling the stack approaches as $N_{\text{exp}} \to \infty$: signal and flatness noise both grow with total integration time, so their ratio is fixed and no exposure count crosses it. When $f_{\text{flat}} = 0$ the ceiling is infinite and the expression collapses to the square-root law above. When $\text{SNR}_{\text{target}} \ge \text{SNR}_{\text{ceil}}$ the denominator is non-positive — the target is unreachable at any exposure count — and CASTOR reports that state (`target_reachable = false`, `required_exposures = null`, and $\text{SNR}_{\text{total}}$ set to the ceiling) instead of returning a frame count that never meets the request.
 
 **4.3.4 Saturation Limit**
 To ensure the detector operates within its linear regime, the saturation time limit ($t_{\text{sat}}$) evaluates how long it takes for a single pixel to reach its Full Well Capacity (FWC) under the combined flux of the target peak, sky, and dark current:
@@ -414,15 +424,6 @@ While the Exposure Time Calculator (ETC) is designed to provide robust and effic
   That optimum is a photon limit, not a universal reduction recipe. On the same fifteen LOT/SOPHIA frames used for the end-to-end check, unflagged and unsaturated stars between 30 and $60\ \text{ke}^-$ had 3.33% median frame-to-frame scatter at $k_{\text{ap}} = 0.85$, against 0.93% at 1.5 and 0.97% from a free-width elliptical-Gaussian PSF fit. In the two brighter bins the three figures were 1.27% / 0.65% / 0.72% and 1.56% / 0.41% / 0.58%. All extractors saw the same stars on the same frames, so intrinsic variability would survive all three; the excess confined to 0.85 is extraction sensitivity to local PSF changes. The default therefore remains 0.85 as CASTOR's least-regret *photon-noise* operating point. A simple aperture pipeline without a stable PSF or per-star aperture correction should instead give CASTOR the larger aperture it will actually use (1.5 was stable in this check). Quantified in `validation/test_endtoend.py`.
 
 ### 5.3 Detector and Noise Limitations
-
-* **Inverse exposure calculation with correlated noise:** The forward stack
-  calculation includes a background-flatness term that persists as exposures
-  accumulate, but the current solve-for-time path still assumes all noise
-  averages down as the square root of the exposure count. For SLT/DU934P r',
-  AB=20 and 120 s frames, it returns six frames for target SNR 20 while the
-  forward result is 14.44; the model ceiling is 18.46. Until question 17 in
-  `validation/QUESTIONS.md` is fixed, use the forward SNR calculation to check
-  any requested exposure count with a nonzero `background_flatness_fraction`.
 
 * **Linear Regime Operation:** The saturation time limit ($t_{\text{sat}}$) assumes a linear response up to the Full Well Capacity ($\text{FWC}$). Non-linear behaviors or charge transfer inefficiencies near saturation limits are not dynamically modeled.
 

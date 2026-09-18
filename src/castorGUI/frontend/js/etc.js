@@ -227,13 +227,21 @@
 
         var core = data.core, budget = data.budget, diag = data.diagnostics, flags = data.flags;
 
-        lastSingleHero = (core.required_exposures === null || core.required_exposures === undefined)
-            ? { label: 'Signal-to-Noise Ratio (SNR)',
+        if (core.target_reachable === false) {
+            // Target sits above the non-averaging background-flatness ceiling:
+            // no exposure count reaches it, so the ceiling is the best on offer.
+            lastSingleHero = { label: 'Target Unreachable',
+                value: '≤ ' + fmt(core.snr_ceiling, 2),
+                desc:  'Requested SNR is above the background-flatness ceiling; no exposure count reaches it.' };
+        } else if (core.required_exposures === null || core.required_exposures === undefined) {
+            lastSingleHero = { label: 'Signal-to-Noise Ratio (SNR)',
                 value: fmt(core.total_snr, 2),
-                desc:  'Calculated based on the given exposure time.' }
-            : { label: 'Required Exposures',
+                desc:  'Calculated based on the given exposure time.' };
+        } else {
+            lastSingleHero = { label: 'Required Exposures',
                 value: core.required_exposures + ' frames',
                 desc:  'Target SNR achieved: ' + fmt(core.total_snr, 2) };
+        }
 
         /* Computed either way, written only when it is the answer on show. While
            sweeping the headline belongs to renderBatch, and painting an instant's

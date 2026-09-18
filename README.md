@@ -95,6 +95,8 @@ uv run pytest validation   # the comparisons, on purpose — see validation/VALI
 - **[Validation](validation/VALIDATION_REPORT.md):** What CASTOR's answers are worth, measured against outside references and real frames — and [what it still does not know](validation/QUESTIONS.md), each item labelled with who can close it.
 
 Before using a calculated exposure count for an observing plan, read the
-[current limitations and release handoff](validation/QUESTIONS.md). In
-particular, solve-for-time can report an exposure count that does not reach the
-requested SNR when the camera has correlated background noise.
+[current limitations and release handoff](validation/QUESTIONS.md). Solve-for-time
+now accounts for the correlated background-flatness floor: it returns a count
+that actually reaches the requested SNR, and where that SNR sits above the floor's
+asymptotic ceiling it reports the target as unreachable rather than returning a
+frame count that never meets it.
