@@ -126,6 +126,23 @@ def build_table():
                     request = request_for(telescope, camera, filter_id, magnitude, target_snr)
                     response = run_calculation(request)
                     ceiling, exact, exact_achieved = exact_exposure_count(request, response, target_snr)
+                    # Reproduce the superseded sqrt(N) solver: N = (target/single)^2,
+                    # then the SNR that many frames actually stack to. This is the
+                    # "before" curve, so the fix is visible next to it.
+                    single = response.core.single_snr
+                    if single > 0:
+                        naive_exposures = math.ceil((target_snr / single) ** 2)
+                        naive_achieved = float(physics.calculate_total_snr(
+                            response.budget.source_count_rate, response.budget.sky_count_rate,
+                            request.instrument.camera.dark_current_rate,
+                            request.instrument.camera.readout_noise,
+                            response.diagnostics.num_pixels_aperture, SINGLE_EXPOSURE_S,
+                            naive_exposures * SINGLE_EXPOSURE_S, naive_exposures,
+                            response.diagnostics.num_pixels_sky_estimate,
+                            request.instrument.camera.background_flatness_fraction,
+                        ))
+                    else:
+                        naive_exposures, naive_achieved = np.nan, np.nan
                     rows.append({
                         "telescope": telescope,
                         "camera": camera,
@@ -141,6 +158,8 @@ def build_table():
                         "current_reachable": response.core.target_reachable,
                         "current_achieved_snr": response.core.total_snr,
                         "current_achieved_fraction": response.core.total_snr / target_snr,
+                        "naive_exposures": naive_exposures,
+                        "naive_achieved_fraction": naive_achieved / target_snr,
                         "asymptotic_snr_ceiling": ceiling,
                         "exact_exposures": exact,
                         "exact_achieved_snr": exact_achieved,
@@ -165,17 +184,28 @@ def make_figure(table):
 
     ax = axes[0, 0]
     for band in FILTERS:
-        subset = slt[(slt["band"].eq(band)) & (slt["target_snr"].eq(20))]
-        ax.plot(subset["ab_magnitude"], subset["current_achieved_fraction"], "o-",
-                color=colours[band], label=f"{band}'")
-    lot = table[(table["telescope"].eq("LOT")) & (table["band"].eq("r"))
-                & (table["target_snr"].eq(20))]
-    ax.plot(lot["ab_magnitude"], lot["current_achieved_fraction"], "--",
-            color="#0f172a", label="LOT r' control (f=0)")
+        subset = slt[(slt["band"].eq(band)) & (slt["target_snr"].eq(20))].sort_values("ab_magnitude")
+        # Old sqrt(N) solver (dashed): undershoots its own target -- below 1.0
+        # even where the target is reachable. This is the bug.
+        ax.plot(subset["ab_magnitude"], subset["naive_achieved_fraction"], "--",
+                color=colours[band], alpha=0.55, linewidth=1.4)
+        # Fixed solver (solid): >= 1.0 wherever the target is reachable, and it
+        # returns "unreachable" (open marker) once the ceiling drops below it.
+        reach = subset[subset["current_reachable"] == True]  # noqa: E712
+        unreach = subset[subset["current_reachable"] != True]  # noqa: E712
+        ax.plot(subset["ab_magnitude"], subset["current_achieved_fraction"], "-",
+                color=colours[band], linewidth=2, label=f"{band}'")
+        ax.plot(reach["ab_magnitude"], reach["current_achieved_fraction"], "o",
+                color=colours[band])
+        ax.plot(unreach["ab_magnitude"], unreach["current_achieved_fraction"], "o",
+                mfc="white", mec=colours[band], mew=1.5)
     ax.axhline(1, color="#0f172a", linewidth=1, linestyle=":")
-    ax.set(xlabel="Target AB magnitude", ylabel="Returned SNR / requested SNR",
-           title="A  Below 1.0 = request above the ceiling (now flagged unreachable)")
-    ax.legend(frameon=False)
+    ax.text(0.02, 0.03,
+            "dashed = old sqrt(N) (undershoots)\nsolid = fixed;  ○ = flagged unreachable",
+            transform=ax.transAxes, fontsize=8, va="bottom", color="#334155")
+    ax.set(xlabel="Target AB magnitude", ylabel="Returned SNR / requested SNR (target 20)",
+           title="A  Fixed solver meets the target where reachable; old one undershot")
+    ax.legend(frameon=False, loc="upper right")
 
     ax = axes[0, 1]
     ceiling = slt[slt["target_snr"].eq(5)]
