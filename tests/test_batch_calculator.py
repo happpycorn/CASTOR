@@ -119,6 +119,32 @@ def test_batch_pipeline_solve_time(mock_moon_batch, batch_base_request):
     for snr in response.core.total_snr:
         assert snr >= 100.0
 
+def test_batch_solve_time_unreachable_target_is_a_none_gap(mock_moon_batch, batch_base_request):
+    """A correlated flatness floor can put the target above the ceiling: those
+    timestamps report a None exposure count and a warning, not a fake number, and
+    the response still serialises to valid JSON (no Infinity/NaN)."""
+    import json
+
+    # A 2% flatness floor plus a faint target and a demanding SNR pushes the
+    # request above the asymptotic ceiling everywhere in the window.
+    batch_base_request.instrument.camera.background_flatness_fraction = 0.02
+    batch_base_request.target.brightness = schema.VegaMagnitude(
+        target_mag=21.0, zero_point_flux=3.6e-9
+    )
+    batch_base_request.options = schema.BatchSolveForTime(
+        aperture_factor=1.5, single_exp_time=300.0, target_snr=200.0
+    )
+
+    response = run_batch_calculation(batch_base_request)
+
+    assert response.core.required_exposures is not None
+    assert all(n is None for n in response.core.required_exposures)
+    assert any("ceiling" in w.lower() for w in response.flags.warnings)
+    # Unreachable timestamps report the finite asymptotic ceiling, not inf/nan.
+    assert all(map(lambda s: s == s and abs(s) != float("inf"), response.core.total_snr))
+    json.loads(response.model_dump_json())  # raises on Infinity/NaN tokens
+
+
 def test_batch_pipeline_solve_snr(mock_moon_batch, batch_base_request):
     """Test the pipeline: solving SNR forward over a time series (SolveForSNR), switched to an extended source"""
     # Swap out the request content

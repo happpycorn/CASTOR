@@ -319,8 +319,25 @@ class CoreResult(StrictModel):
         description="Signal-to-Noise Ratio for a single exposure frame. (ATBD: SNR_single) [dimensionless]"
     )
     required_exposures: int | None = Field(
-        None, 
-        description="Required number of exposures to achieve the target SNR. (ATBD: N_exp_out). Available only in 'solve_time' mode."
+        None,
+        description="Required number of exposures to achieve the target SNR. (ATBD: N_exp_out). Available only in 'solve_time' mode, and None when the target SNR is unreachable (see target_reachable)."
+    )
+    snr_ceiling: float | None = Field(
+        None,
+        description=(
+            "Asymptotic maximum stacked SNR imposed by the non-averaging background-flatness "
+            "floor. (ATBD: SNR_ceiling) [dimensionless]. None means no floor (background_flatness_fraction = 0) "
+            "so the ceiling is effectively infinite."
+        )
+    )
+    target_reachable: bool | None = Field(
+        None,
+        description=(
+            "In 'solve_time' mode, whether the requested target SNR is below the flatness ceiling "
+            "and therefore attainable with a finite exposure count. False means unreachable: "
+            "required_exposures is None and total_snr reports the asymptotic ceiling. None in "
+            "'solve_snr' mode, where no target is solved for."
+        )
     )
     saturation_time_limit: float = Field(
         ..., 
@@ -491,13 +508,15 @@ class BatchCoreResult(StrictModel):
     timestamps_iso: list[str] = Field(..., description="Expanded discrete UTC timestamps.")
     total_snr: list[float] = Field(..., description="Total SNR array across the time series.")
     single_snr: list[float] = Field(..., description="Single exposure SNR array.")
-    required_exposures: list[float] | None = Field(
+    required_exposures: list[float | None] | None = Field(
         None,
         description=(
             "Exposures needed to reach the target SNR at each timestamp. Available only in "
             "'solve_time' mode, and the only result array that responds to the calculation "
             "goal — single_snr and saturation_time_limit describe the sky and the detector "
-            "and are the same whichever goal is set."
+            "and are the same whichever goal is set. A None entry marks a timestamp whose "
+            "target SNR is above the background-flatness ceiling and so unreachable at any "
+            "exposure count; total_snr there reports the asymptotic ceiling."
         )
     )
     saturation_time_limit: list[float] = Field(..., description="Saturation time limit array [s].")

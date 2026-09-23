@@ -126,6 +126,9 @@ def run_batch_calculation(request: schema.BatchObservationRequest) -> schema.Bat
     # Stays None for solve_snr, where "how many exposures" is an input rather than
     # an answer and there is nothing per-timestamp to report.
     req_exp_int_arr = None
+    # Timestamps whose target sits above the flatness ceiling (unreachable) carry
+    # NaN in req_exp_int_arr and are reported as None gaps; this flags the warning.
+    any_unreachable = False
 
     match opt:
         case schema.BatchSolveForSNR(num_exposures=n_exp):
@@ -137,39 +140,60 @@ def run_batch_calculation(request: schema.BatchObservationRequest) -> schema.Bat
             )
 
         case schema.BatchSolveForTime(target_snr=t_snr):
-            req_exp_float_arr = physics.solve_required_exposures(t_snr, single_snr_arr)
+            ceiling_arr = physics.calculate_flatness_snr_ceiling(
+                source_rate_arr, sky_rate_arr, n_pix, inst.camera.background_flatness_fraction
+            )
+            req_exp_float_arr = physics.solve_required_exposures(t_snr, single_snr_arr, ceiling_arr)
+            reachable_mask = np.isfinite(req_exp_float_arr)
+            any_unreachable = bool(not np.all(reachable_mask))
 
-            req_exp_int_arr = np.ceil(req_exp_float_arr)
-            total_exp_time_arr = opt.single_exp_time * req_exp_int_arr
+            # The forward stack cannot take the +inf that unreachable timestamps
+            # carry, so solve those with a placeholder count and overwrite below.
+            req_exp_ceil_arr = np.ceil(np.where(reachable_mask, req_exp_float_arr, 1.0))
+            total_exp_time_arr = opt.single_exp_time * req_exp_ceil_arr
 
-            total_snr_arr = physics.calculate_total_snr(
+            total_snr_reachable = physics.calculate_total_snr(
                 source_rate_arr, sky_rate_arr, inst.camera.dark_current_rate, inst.camera.readout_noise,
-                n_pix, opt.single_exp_time, total_exp_time_arr, req_exp_int_arr, n_est,
+                n_pix, opt.single_exp_time, total_exp_time_arr, req_exp_ceil_arr, n_est,
                 inst.camera.background_flatness_fraction
             )
-            
+            # Unreachable timestamps report the asymptotic ceiling as their best
+            # SNR and an empty (None) exposure count.
+            total_snr_arr = np.where(reachable_mask, total_snr_reachable, ceiling_arr)
+            req_exp_int_arr = np.where(reachable_mask, req_exp_ceil_arr, np.nan)
+
         case _:
             raise ValueError("Unknown batch calculation option")
 
     t_sat_arr = physics.calculate_saturation_time(
         inst.camera.full_well_capacity, peak_rate_arr, sky_rate_arr, inst.camera.dark_current_rate
     )
-    
+
     warnings = []
     if np.any(airmass_arr > 2.0):
         warnings.append("Airmass > 2.0 detected in time series: Extinction model accuracy may degrade.")
+    if any_unreachable:
+        warnings.append(
+            "Target SNR is at or above the background-flatness ceiling at one or more "
+            "timestamps; those points are unreachable at any exposure count."
+        )
 
     # np.atleast_1d ensures that even a single expanded time point becomes a list cleanly,
     # without crashing
     def to_list(arr) -> list[float]:
         return np.atleast_1d(arr).tolist()
 
+    # Unreachable timestamps carry NaN, which is not valid JSON: map them to None
+    # so the exposure-count series shows an honest gap rather than a bad number.
+    def to_exposure_list(arr) -> list[float | None]:
+        return [None if not np.isfinite(v) else float(v) for v in np.atleast_1d(arr)]
+
     return schema.BatchObservationResponse(
         core=schema.BatchCoreResult(
             timestamps_iso=time_series_iso,
             total_snr=to_list(total_snr_arr),
             single_snr=to_list(single_snr_arr),
-            required_exposures=None if req_exp_int_arr is None else to_list(req_exp_int_arr),
+            required_exposures=None if req_exp_int_arr is None else to_exposure_list(req_exp_int_arr),
             saturation_time_limit=to_list(t_sat_arr)
         ),
         # Reuses the zenith angles the photometry already needed; elevation is just

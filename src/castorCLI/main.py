@@ -146,10 +146,15 @@ def _results(request: schema.ObservationRequest, response: schema.ObservationRes
     single = request.options.single_exp_time
     frames = core.required_exposures if core.required_exposures is not None else getattr(request.options, "num_exposures", None)
 
+    total_snr_note = "  (ceiling — target unreachable)" if core.target_reachable is False else ""
     rows = [
-        ("Total SNR", f"{core.total_snr:.2f}"),
+        ("Total SNR", f"{core.total_snr:.2f}{total_snr_note}"),
         ("Single-frame SNR", f"{core.single_snr:.2f}"),
     ]
+    # The flatness floor caps the stack; worth showing whenever it bites, except
+    # in the unreachable case where Total SNR already reports that ceiling.
+    if core.snr_ceiling is not None and core.target_reachable is not False:
+        rows.append(("SNR ceiling", f"{core.snr_ceiling:.2f}"))
     if core.required_exposures is not None:
         rows.append(("Exposures needed", f"{core.required_exposures}"))
     if frames:
